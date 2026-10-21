@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   getSubjects,
+  createSubject,
+  createTopic,
   getTopics,
   getStudyPlans,
   saveStudyPlan,
@@ -49,12 +51,69 @@ export function registerQuizForEvaluation(session: Omit<ActiveQuizSession, 'crea
 
 export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
   {
+    name: 'list_subjects',
+    description: 'Lists saved, non-archived subjects and their saved topic counts.',
+    parameters: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'create_subject',
+    description: 'Creates a saved custom subject and optional student-provided starter topics.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Subject name' },
+        code: { type: 'string', description: 'Optional course code' },
+        examination_date: { type: 'string', description: 'Optional YYYY-MM-DD examination date' },
+        topics: { type: 'array', description: 'Optional topic names supplied by the student; not an official syllabus' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'get_subject_progress',
+    description: 'Returns actual quiz history, topic mastery, and saved study sessions for one validated subject ID.',
+    parameters: { type: 'object', properties: { subject_id: { type: 'string', description: 'Saved subject ID' } }, required: ['subject_id'] },
+  },
+  {
+    name: 'create_subject_study_plan',
+    description: 'Creates and saves a subject-specific plan using only topics and performance from the selected subject.',
+    parameters: {
+      type: 'object',
+      properties: {
+        subject_id: { type: 'string', description: 'Saved subject ID' },
+        exam_date: { type: 'string', description: 'Target exam date in YYYY-MM-DD format' },
+        hours_per_day: { type: 'number', description: 'Available study hours per day' },
+      },
+      required: ['subject_id'],
+    },
+  },
+  {
+    name: 'generate_subject_quiz',
+    description: 'Generates a quiz for a topic constrained to the selected subject ID.',
+    parameters: {
+      type: 'object',
+      properties: {
+        subject_id: { type: 'string', description: 'Saved subject ID' },
+        topic_name: { type: 'string', description: 'Topic saved under the selected subject' },
+        difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'], description: 'Quiz difficulty' },
+        num_questions: { type: 'number', description: 'Question count from 1 to 10' },
+      },
+      required: ['subject_id', 'topic_name'],
+    },
+  },
+  {
+    name: 'recommend_subject_revision',
+    description: 'Recommends revision using saved attempts and plans from one subject only.',
+    parameters: { type: 'object', properties: { subject_id: { type: 'string', description: 'Saved subject ID' } }, required: ['subject_id'] },
+  },
+  {
     name: 'create_study_plan',
     description: 'Generates and persists a structured, prioritized study schedule for an upcoming examination or subject.',
     parameters: {
       type: 'object',
       properties: {
         subject_name: { type: 'string', description: 'Name of the subject (e.g. "Algorithms & Data Structures")' },
+        subject_id: { type: 'string', description: 'Optional saved subject ID; when supplied it must match subject_name' },
         topics: { type: 'string', description: 'Comma-separated topic names to cover (optional)' },
         exam_date: { type: 'string', description: 'Target examination date in YYYY-MM-DD format (optional)' },
         hours_per_day: { type: 'number', description: 'Available study hours per day (default 2)' },
@@ -95,6 +154,7 @@ export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
       type: 'object',
       properties: {
         subject_name: { type: 'string', description: 'Optional subject filter' },
+        subject_id: { type: 'string', description: 'Optional saved subject ID filter' },
       },
       required: [],
     },
@@ -119,6 +179,7 @@ export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
       type: 'object',
       properties: {
         days_ahead: { type: 'number', description: 'Number of days to look ahead, from 1 to 90 (default 7)' },
+        subject_id: { type: 'string', description: 'Optional saved subject ID filter' },
       },
       required: [],
     },
@@ -146,7 +207,7 @@ export interface ToolInvocationResult {
 const today = () => new Date().toISOString().slice(0, 10);
 
 function findSubject(name: string) {
-  return getSubjects().find((subject) => subject.name.toLowerCase() === name.trim().toLowerCase());
+  return getSubjects().find((subject) => !subject.archivedAt && subject.name.toLowerCase() === name.trim().toLowerCase());
 }
 
 function findTopic(name: string, subjectId?: string) {
@@ -170,8 +231,69 @@ export async function executeAlexaTool(
 ): Promise<ToolInvocationResult> {
   const timestamp = new Date().toISOString();
 
+  const scopedAliases: Record<string, string> = {
+    get_subject_progress: 'get_student_progress',
+    create_subject_study_plan: 'create_study_plan',
+    generate_subject_quiz: 'generate_quiz',
+    recommend_subject_revision: 'recommend_revision',
+  };
+  const aliasedTool = scopedAliases[toolName];
+  if (aliasedTool) {
+    const subjectId = typeof args.subject_id === 'string' ? args.subject_id : '';
+    const subject = getSubjects().find((item) => item.id === subjectId && !item.archivedAt);
+    if (!subject) return failure(toolName, 'Choose a saved, active subject before running this tool.', 'Invalid subject_id', timestamp);
+    const result = await executeAlexaTool(aliasedTool, { ...args, subject_id: subject.id, subject_name: subject.name });
+    return { ...result, tool: toolName };
+  }
+
   try {
     switch (toolName) {
+      case 'list_subjects': {
+        const subjects = getSubjects().filter((subject) => !subject.archivedAt);
+        return {
+          success: true,
+          tool: toolName,
+          speechText: subjects.length ? `You have ${subjects.length} saved subjects.` : 'No subjects have been added yet.',
+          data: subjects.map((subject) => ({ ...subject, topicCount: getTopics(subject.id).length })),
+          timestamp,
+        };
+      }
+
+      case 'create_subject': {
+        const name = typeof args.name === 'string' ? args.name.trim() : '';
+        const topics = args.topics === undefined ? [] : args.topics;
+        if (!name || name.length > 80 || !Array.isArray(topics) || topics.length > 20
+          || !topics.every((topic: unknown) => typeof topic === 'string' && topic.trim().length > 0 && topic.trim().length <= 100)) {
+          return failure(toolName, 'Provide a subject name and up to 20 topic names of 100 characters or fewer.', 'Invalid subject arguments', timestamp);
+        }
+        if (args.examination_date !== undefined && !validDate(args.examination_date)) {
+          return failure(toolName, 'Use YYYY-MM-DD for the exam date.', 'Invalid examination_date', timestamp);
+        }
+        const subject = createSubject({
+          userId: getUser().id,
+          name,
+          code: typeof args.code === 'string' && args.code.trim() ? args.code.trim().slice(0, 20) : name.slice(0, 4).toUpperCase(),
+          color: '#0ea5a4',
+          icon: 'BookOpen',
+          ...(typeof args.examination_date === 'string' ? { examinationDate: args.examination_date } : {}),
+        });
+        const createdTopics = [...new Set((topics as string[]).map((topic) => topic.trim()))].map((topicName) => createTopic({
+          subjectId: subject.id,
+          name: topicName,
+          difficulty: 'intermediate',
+          confidenceLevel: 3,
+          completionStatus: 'not_started',
+          notes: 'Student-provided topic; no official syllabus has been inferred.',
+        }));
+        return {
+          success: true,
+          tool: toolName,
+          speechText: `Created ${subject.name}${createdTopics.length ? ` with ${createdTopics.length} student-provided topics` : ''}.`,
+          data: { ...subject, topics: createdTopics },
+          timestamp,
+        };
+      }
+
       case 'create_study_plan': {
         const subjectName = typeof args.subject_name === 'string' ? args.subject_name.trim() : '';
         if (!subjectName) {
@@ -179,9 +301,19 @@ export async function executeAlexaTool(
         }
 
         const subjects = getSubjects();
-        const existingSubject = findSubject(subjectName);
+        const requestedSubjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        const subjectById = requestedSubjectId
+          ? subjects.find((subject) => subject.id === requestedSubjectId && !subject.archivedAt)
+          : undefined;
+        if (requestedSubjectId && !subjectById) {
+          return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        }
+        const existingSubject = subjectById || findSubject(subjectName);
         if (!existingSubject) {
           return failure(toolName, `I couldn't find ${subjectName} in your saved subjects. Choose one of: ${subjects.map((subject) => subject.name).join(', ') || 'no subjects are saved yet'}.`, 'Unknown subject_name', timestamp);
+        }
+        if (existingSubject.name.toLowerCase() !== subjectName.toLowerCase()) {
+          return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
         }
 
         const allTopics = getTopics(existingSubject.id);
@@ -240,6 +372,20 @@ export async function executeAlexaTool(
           weakTopics,
         });
 
+        const coachRequestKey = typeof args.coach_request_key === 'string' ? args.coach_request_key : '';
+        const existingCoachPlan = coachRequestKey
+          ? getStudyPlans().find((existingPlan) => existingPlan.coachRequestKey === coachRequestKey)
+          : undefined;
+        if (existingCoachPlan) {
+          return {
+            success: true,
+            tool: toolName,
+            speechText: `I reused the matching saved plan for ${subjectName}; no duplicate plan was created.`,
+            data: { ...existingCoachPlan, reused: true },
+            timestamp,
+          };
+        }
+
         // Save plan to persistent DB
         const savedPlan = saveStudyPlan({
           userId: 'user_alexa_01',
@@ -247,7 +393,7 @@ export async function executeAlexaTool(
           subjectId: existingSubject.id,
           subjectName,
           examDate,
-          ...(typeof args.coach_request_key === 'string' ? { coachRequestKey: args.coach_request_key } : {}),
+          ...(coachRequestKey ? { coachRequestKey } : {}),
           totalHours: generated.totalHours,
           priorityRationale: generated.priorityRationale,
           sessions: generated.sessions.map((s, idx) => ({
@@ -309,7 +455,22 @@ export async function executeAlexaTool(
           return failure(toolName, 'Which saved topic should I make a quiz about?', 'Missing required argument: topic_name', timestamp);
         }
 
-        const topic = findTopic(topicName);
+        const requestedSubjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        const subjectById = requestedSubjectId
+          ? getSubjects().find((candidate) => candidate.id === requestedSubjectId && !candidate.archivedAt)
+          : undefined;
+        if (requestedSubjectId && !subjectById) {
+          return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        }
+        const namedSubject = typeof args.subject_name === 'string' ? findSubject(args.subject_name) : undefined;
+        if (args.subject_name !== undefined && !namedSubject) {
+          return failure(toolName, `I couldn't find ${args.subject_name} in your saved subjects.`, 'Unknown subject_name', timestamp);
+        }
+        if (subjectById && namedSubject && subjectById.id !== namedSubject.id) {
+          return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+        }
+        const requestedSubject = subjectById || namedSubject;
+        const topic = findTopic(topicName, requestedSubject?.id);
         if (!topic) {
           return failure(toolName, `I couldn't match ${topicName} to a saved topic. Please use a topic from one of your subjects.`, 'Unknown topic_name', timestamp);
         }
@@ -365,10 +526,17 @@ export async function executeAlexaTool(
         const allSessions = plans.flatMap((p) => p.sessions);
 
         const subjectName = typeof args.subject_name === 'string' ? args.subject_name.trim() : '';
-        const subject = subjectName ? findSubject(subjectName) : undefined;
-        if (subjectName && !subject) {
+        const subjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        const subjectById = subjectId ? subjects.find((candidate) => candidate.id === subjectId && !candidate.archivedAt) : undefined;
+        if (subjectId && !subjectById) return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        const namedSubject = subjectName ? findSubject(subjectName) : undefined;
+        if (subjectName && !namedSubject) {
           return failure(toolName, `I couldn't find ${subjectName} in your saved subjects.`, 'Unknown subject_name', timestamp);
         }
+        if (subjectById && namedSubject && subjectById.id !== namedSubject.id) {
+          return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+        }
+        const subject = subjectById || namedSubject;
         const scopedTopics = subject ? topics.filter((topic) => topic.subjectId === subject.id) : topics;
         const scopedAttempts = subject ? attempts.filter((attempt) => attempt.subjectId === subject.id) : attempts;
         const scopedSessions = subject ? allSessions.filter((session) => session.subjectName === subject.name) : allSessions;
@@ -475,7 +643,12 @@ export async function executeAlexaTool(
         const end = new Date(`${startDate}T00:00:00.000Z`);
         end.setUTCDate(end.getUTCDate() + daysAhead);
         const endDate = end.toISOString().slice(0, 10);
+        const subjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        if (subjectId && !getSubjects().some((subject) => subject.id === subjectId && !subject.archivedAt)) {
+          return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        }
         const tasks = getStudyPlans()
+          .filter((plan) => !subjectId || plan.subjectId === subjectId)
           .flatMap((plan) => plan.sessions
             .filter((session) => session.status === 'pending' && session.scheduledDate >= startDate && session.scheduledDate <= endDate)
             .map((session) => ({ ...session, planId: plan.id, planTitle: plan.title })))
@@ -493,10 +666,21 @@ export async function executeAlexaTool(
       }
 
       case 'recommend_revision': {
-        const subjects = getSubjects();
-        const topics = getTopics();
-        const attempts = getQuizAttempts();
-        const plans = getStudyPlans();
+        const allSubjects = getSubjects();
+        const subjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        const subjectName = typeof args.subject_name === 'string' ? args.subject_name.trim() : '';
+        const subjectById = subjectId ? allSubjects.find((subject) => subject.id === subjectId && !subject.archivedAt) : undefined;
+        const namedSubject = subjectName ? findSubject(subjectName) : undefined;
+        if (subjectId && !subjectById) return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        if (subjectName && !namedSubject) return failure(toolName, `I couldn't find ${subjectName} in your saved subjects.`, 'Unknown subject_name', timestamp);
+        if (subjectById && namedSubject && subjectById.id !== namedSubject.id) {
+          return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+        }
+        const scopedSubject = subjectById || namedSubject;
+        const subjects = scopedSubject ? [scopedSubject] : allSubjects;
+        const topics = getTopics(scopedSubject?.id);
+        const attempts = getQuizAttempts(undefined, scopedSubject?.id);
+        const plans = getStudyPlans().filter((plan) => !scopedSubject || plan.subjectId === scopedSubject.id);
         const allSessions = plans.flatMap((p) => p.sessions);
 
         const analytics = computeTopicAnalytics(topics, subjects, attempts, allSessions);
@@ -584,7 +768,7 @@ function parseRequestedDate(text: string): string | undefined {
 
 function mentionedSubject(text: string) {
   const normalized = normalizeText(text);
-  return getSubjects().find((subject) => normalized.includes(normalizeText(subject.name)));
+  return getSubjects().find((subject) => !subject.archivedAt && normalized.includes(normalizeText(subject.name)));
 }
 
 function mentionedTopic(text: string, subjectId?: string) {
@@ -604,6 +788,7 @@ export async function routeStudyAssistantRequest(
     subjectName?: string;
     difficulty?: 'beginner' | 'intermediate' | 'advanced';
     mode?: 'simple' | 'exam' | 'tutorial' | 'revision' | 'practice';
+    topicName?: string;
     pendingTool?: { name: string; arguments: Record<string, unknown> };
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   } = {}
@@ -616,7 +801,8 @@ export async function routeStudyAssistantRequest(
     || subjects.find((item) => item.name === pending?.arguments.subject_name)
     || subjects.find((item) => item.name === context.subjectName);
   const topic = mentionedTopic(text, subject?.id)
-    || (typeof pending?.arguments.topic_name === 'string' ? findTopic(pending.arguments.topic_name, subject?.id) : undefined);
+    || (typeof pending?.arguments.topic_name === 'string' ? findTopic(pending.arguments.topic_name, subject?.id) : undefined)
+    || (typeof context.topicName === 'string' ? findTopic(context.topicName, subject?.id) : undefined);
 
   const isAdaptiveCoachRequest = pending?.name === 'adaptive_study_coach'
     || /\b(exam preparation|exam prep)\b/.test(normalized)
@@ -624,7 +810,7 @@ export async function routeStudyAssistantRequest(
     || /\b(?:exam|examination)\b.{0,32}\b(?:prepare|prep|study)\b/.test(normalized);
 
   if (isAdaptiveCoachRequest) {
-    const progressArgs = subject ? { subject_name: subject.name } : {};
+    const progressArgs = subject ? { subject_id: subject.id, subject_name: subject.name } : {};
     const progress = await executeAlexaTool('get_student_progress', progressArgs);
     const progressData = progress.data as {
       quizAttempts?: unknown[];
@@ -684,6 +870,8 @@ export async function routeStudyAssistantRequest(
       }
 
       const diagnostic = await executeAlexaTool('generate_quiz', {
+        subject_id: subject.id,
+        subject_name: subject.name,
         topic_name: subjectTopics[0].name,
         difficulty: getUser().difficultyPreference,
         num_questions: 5,
@@ -703,7 +891,7 @@ export async function routeStudyAssistantRequest(
         action: diagnostic.success ? 'DIAGNOSTIC_REQUIRED' : 'TOOL_ERROR',
         data: diagnostic.data,
         success: diagnostic.success,
-        toolCall: { name: 'generate_quiz', arguments: { topic_name: subjectTopics[0].name, num_questions: 5 }, result: diagnostic },
+        toolCall: { name: 'generate_quiz', arguments: { subject_id: subject.id, topic_name: subjectTopics[0].name, num_questions: 5 }, result: diagnostic },
         actionHistory: history,
       };
     }
@@ -726,7 +914,7 @@ export async function routeStudyAssistantRequest(
         action: 'ASK_FOR_DETAILS',
         data: { subjectName: subject.name, weakTopics },
         success: false,
-        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_name: subject.name, hours_per_day: hoursPerDay } },
+        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_id: subject.id, subject_name: subject.name, hours_per_day: hoursPerDay } },
         toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
         actionHistory: history,
       };
@@ -739,7 +927,7 @@ export async function routeStudyAssistantRequest(
         action: 'ASK_FOR_DETAILS',
         data: { subjectName: subject.name, weakTopics },
         success: false,
-        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_name: subject.name, exam_date: examDate } },
+        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_id: subject.id, subject_name: subject.name, exam_date: examDate } },
         toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
         actionHistory: history,
       };
@@ -782,18 +970,22 @@ export async function routeStudyAssistantRequest(
         action: 'adaptive_study_coach',
         data: duplicate,
         success: true,
-        toolCall: { name: 'create_study_plan', arguments: { subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay }, result },
+        toolCall: { name: 'create_study_plan', arguments: { subject_id: subject.id, subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay }, result },
         actionHistory: history,
       };
     }
 
-    const planArgs = { subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay, coach_request_key: coachRequestKey };
+    const planArgs = { subject_id: subject.id, subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay, coach_request_key: coachRequestKey };
     const planResult = await executeAlexaTool('create_study_plan', planArgs);
-    const planData = planResult.data as { id?: string; title?: string; sessions?: unknown[] } | null;
+    const planData = planResult.data as { id?: string; title?: string; sessions?: unknown[]; reused?: boolean } | null;
     history.push({
       tool: 'create_study_plan',
-      status: planResult.success ? 'completed' : 'failed',
-      summary: planResult.success ? `Saved ${planData?.title || 'an exam study plan'} with ${planData?.sessions?.length || 0} sessions.` : planResult.error || 'Plan creation failed.',
+      status: planResult.success ? planData?.reused ? 'reused' : 'completed' : 'failed',
+      summary: planResult.success
+        ? planData?.reused
+          ? `Reused ${planData.title || 'the matching saved plan'}; no duplicate plan was created.`
+          : `Saved ${planData?.title || 'an exam study plan'} with ${planData?.sessions?.length || 0} sessions.`
+        : planResult.error || 'Plan creation failed.',
       dataUsed: [`Exam date ${examDate}`, `${hoursPerDay} study hours per day`, ...weakSummary],
       ...(planResult.success && planData?.id ? { savedRecordId: planData.id } : {}),
     });
@@ -825,6 +1017,7 @@ export async function routeStudyAssistantRequest(
       const requestedTopics = getTopics(subject.id).filter((item) => normalized.includes(normalizeText(item.name)));
       args = {
         ...args,
+        subject_id: subject.id,
         subject_name: subject.name,
         ...(requestedTopics.length ? { topics: requestedTopics.map((item) => item.name).join(', ') } : {}),
         ...(date ? { exam_date: date } : {}),
@@ -844,6 +1037,7 @@ export async function routeStudyAssistantRequest(
       const countMatch = normalized.match(/\b(\d+)\s+questions?\b/);
       args = {
         ...args,
+        ...(subject ? { subject_id: subject.id, subject_name: subject.name } : {}),
         topic_name: topic.name,
         difficulty: context.difficulty || getUser().difficultyPreference,
         ...(countMatch ? { num_questions: Number(countMatch[1]) } : {}),
@@ -852,16 +1046,20 @@ export async function routeStudyAssistantRequest(
   } else if (tool === 'explain_topic' || /\b(explain|teach me|what is|how does|help me understand)\b/.test(normalized)) {
     tool = 'explain_topic';
     const cleanedTopic = text.replace(/^(?:studypilot\s*[,;:]?\s*)?(?:please\s+)?(?:explain|teach me|what is|how does|help me understand)\s+/i, '').replace(/[?.!]+$/, '').trim();
-    const topicName = cleanedTopic || (pending?.name === 'explain_topic' ? text.replace(/[?.!]+$/, '').trim() : '');
+    const genericTopic = /^(?:this|it|this topic|that topic)$/i.test(cleanedTopic);
+    const topicName = (genericTopic ? context.topicName : cleanedTopic)
+      || (pending?.name === 'explain_topic' ? text.replace(/[?.!]+$/, '').trim() : context.topicName || '');
     if (!topicName) clarification = 'What topic would you like me to explain?';
     else args = { ...args, topic_name: topicName, difficulty: context.difficulty || getUser().difficultyPreference, mode: context.mode || 'simple' };
   } else if (tool === 'recommend_revision' || /\b(what should i study|what to study|study today|revise|revision|weak|weakest|recommend)\b/.test(normalized)) {
     tool = 'recommend_revision';
+    if (subject) args = { ...args, subject_id: subject.id, subject_name: subject.name };
   } else if (tool === 'get_student_progress' || /\b(progress|how much did i study|study hours|quiz scores|performance|streak|study sessions)\b/.test(normalized)) {
     tool = 'get_student_progress';
-    if (subject) args.subject_name = subject.name;
+    if (subject) args = { ...args, subject_id: subject.id, subject_name: subject.name };
   } else if (tool === 'get_upcoming_tasks' || /\b(upcoming tasks?|what s due|what is due|deadlines?|sessions due)\b/.test(normalized)) {
     tool = 'get_upcoming_tasks';
+    if (subject) args.subject_id = subject.id;
   }
 
   if (clarification) {
@@ -892,7 +1090,9 @@ export async function routeStudyAssistantRequest(
       ...(Array.isArray(context.history) ? context.history.slice(-12) : []),
       { role: 'user', content: text },
     ],
-    subjectName: context.subjectName,
+    subjectName: context.topicName
+      ? `${context.subjectName || 'General Studies'} (current topic: ${context.topicName})`
+      : context.subjectName,
     mode: context.mode,
     difficulty: context.difficulty,
   });

@@ -17,6 +17,8 @@ import { api } from '../api.js';
 interface PlannerViewProps {
   plans: StudyPlan[];
   subjects: Subject[];
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   topicAnalytics: TopicAnalytics[];
   onRefreshPlans: () => void;
   onCompleteSession: (planId: string, sessionId: string) => void;
@@ -25,6 +27,8 @@ interface PlannerViewProps {
 export const PlannerView: React.FC<PlannerViewProps> = ({
   plans,
   subjects,
+  activeSubjectId,
+  onSelectSubject,
   topicAnalytics,
   onRefreshPlans,
   onCompleteSession,
@@ -35,7 +39,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
 
   // Form fields
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    subjects[0]?.id || ''
+    activeSubjectId || subjects.find((subject) => !subject.archivedAt)?.id || ''
   );
   const [examDate, setExamDate] = useState<string>(
     new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]
@@ -43,6 +47,10 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const [hoursPerDay, setHoursPerDay] = useState<number>(2);
 
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
+
+  React.useEffect(() => {
+    if (activeSubjectId) setSelectedSubjectId(activeSubjectId);
+  }, [activeSubjectId]);
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -312,7 +320,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                   onChange={(e) => setSelectedSubjectId(e.target.value)}
                   className="w-full bg-slate-800 text-white text-xs rounded-xl px-3 py-2 border border-slate-700"
                 >
-                  {subjects.map((s) => (
+                  {subjects.filter((subject) => !subject.archivedAt).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.code})
                     </option>

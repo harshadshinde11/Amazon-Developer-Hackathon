@@ -24,6 +24,8 @@ interface DashboardViewProps {
   topicAnalytics: TopicAnalytics[];
   recommendations: AdaptiveRecommendation[];
   onNavigate: (view: NavView) => void;
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   onStartAdaptiveCoach: () => void;
   onStartQuiz: (topicId?: string, topicName?: string) => void;
   onCompleteSession: (planId: string, sessionId: string) => void;
@@ -38,6 +40,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   topicAnalytics,
   recommendations,
   onNavigate,
+  activeSubjectId,
+  onSelectSubject,
   onStartAdaptiveCoach,
   onStartQuiz,
   onCompleteSession,

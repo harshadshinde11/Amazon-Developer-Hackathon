@@ -335,6 +335,9 @@ export function getSubjects(): Subject[] {
 
 export function createSubject(subject: Omit<Subject, 'id' | 'createdAt'>): Subject {
   const db = readDb();
+  if (db.subjects.some((existing) => existing.name.trim().toLowerCase() === subject.name.trim().toLowerCase())) {
+    throw new Error('A subject with this name already exists');
+  }
   const newSub: Subject = {
     ...subject,
     id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -345,10 +348,52 @@ export function createSubject(subject: Omit<Subject, 'id' | 'createdAt'>): Subje
   return newSub;
 }
 
+export function updateSubject(subjectId: string, partial: Partial<Subject>): Subject | null {
+  const db = readDb();
+  const subjectIndex = db.subjects.findIndex((subject) => subject.id === subjectId);
+  if (subjectIndex === -1) return null;
+  const nextName = typeof partial.name === 'string' ? partial.name.trim() : db.subjects[subjectIndex].name;
+  if (!nextName) throw new Error('Subject name is required');
+  if (db.subjects.some((subject) => subject.id !== subjectId && subject.name.trim().toLowerCase() === nextName.toLowerCase())) {
+    throw new Error('A subject with this name already exists');
+  }
+  db.subjects[subjectIndex] = { ...db.subjects[subjectIndex], ...partial, name: nextName };
+  const updatedSubject = db.subjects[subjectIndex];
+  for (const plan of db.studyPlans) {
+    if (plan.subjectId !== subjectId) continue;
+    plan.subjectName = updatedSubject.name;
+    for (const session of plan.sessions) session.subjectName = updatedSubject.name;
+  }
+  for (const attempt of db.quizAttempts) {
+    if (attempt.subjectId === subjectId) attempt.subjectName = updatedSubject.name;
+  }
+  for (const conversation of db.conversations) {
+    if (conversation.subjectId === subjectId) conversation.subjectName = updatedSubject.name;
+  }
+  if (updatedSubject.archivedAt && db.user.activeSubjectId === subjectId) {
+    db.user.activeSubjectId = db.subjects.find((subject) => subject.id !== subjectId && !subject.archivedAt)?.id;
+  }
+  writeDb(db);
+  return updatedSubject;
+}
+
+export function archiveSubject(subjectId: string, archived: boolean): Subject | null {
+  return updateSubject(subjectId, { archivedAt: archived ? new Date().toISOString() : undefined });
+}
+
 export function deleteSubject(subjectId: string): boolean {
   const db = readDb();
+  if (!db.subjects.some((subject) => subject.id === subjectId)) return false;
+  const topicIds = new Set(db.topics.filter((topic) => topic.subjectId === subjectId).map((topic) => topic.id));
+  const hasHistory = db.quizAttempts.some((attempt) => attempt.subjectId === subjectId || topicIds.has(attempt.topicId))
+    || db.studyPlans.some((plan) => plan.subjectId === subjectId)
+    || db.conversations.some((conversation) => conversation.subjectId === subjectId);
+  if (hasHistory) return false;
   db.subjects = db.subjects.filter((s) => s.id !== subjectId);
   db.topics = db.topics.filter((t) => t.subjectId !== subjectId);
+  if (db.user.activeSubjectId === subjectId) {
+    db.user.activeSubjectId = db.subjects.find((subject) => !subject.archivedAt)?.id;
+  }
   writeDb(db);
   return true;
 }
@@ -437,12 +482,12 @@ export function deleteStudyPlan(planId: string): boolean {
 }
 
 // Quiz Attempts Helpers
-export function getQuizAttempts(topicId?: string): QuizAttempt[] {
+export function getQuizAttempts(topicId?: string, subjectId?: string): QuizAttempt[] {
   const db = readDb();
-  if (topicId) {
-    return db.quizAttempts.filter((q) => q.topicId === topicId);
-  }
-  return db.quizAttempts;
+  return db.quizAttempts.filter((attempt) =>
+    (!topicId || attempt.topicId === topicId)
+    && (!subjectId || attempt.subjectId === subjectId)
+  );
 }
 
 export function saveQuizAttempt(attempt: Omit<QuizAttempt, 'id' | 'attemptedAt'>): QuizAttempt {

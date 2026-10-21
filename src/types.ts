@@ -12,6 +12,7 @@ export interface UserProfile {
   difficultyPreference: 'beginner' | 'intermediate' | 'advanced';
   soundEnabled: boolean;
   voiceGender: 'female' | 'male';
+  activeSubjectId?: string;
 }
 
 export interface Subject {
@@ -22,6 +23,7 @@ export interface Subject {
   color: string;
   icon: string;
   examinationDate?: string;
+  archivedAt?: string;
   createdAt: string;
 }
 

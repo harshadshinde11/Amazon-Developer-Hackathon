@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -11,10 +11,12 @@ import {
   Star,
   Target,
 } from 'lucide-react';
-import { UserProfile, TopicAnalytics, QuizAttempt, StudyPlan } from '../types.js';
+import { UserProfile, TopicAnalytics, QuizAttempt, StudyPlan, Subject } from '../types.js';
 
 interface AnalyticsViewProps {
   user: UserProfile;
+  subjects: Subject[];
+  activeSubjectId: string;
   topicAnalytics: TopicAnalytics[];
   attempts: QuizAttempt[];
   plans: StudyPlan[];
@@ -23,22 +25,43 @@ interface AnalyticsViewProps {
 
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
   user,
+  subjects,
+  activeSubjectId,
   topicAnalytics,
   attempts,
   plans,
   onStartQuiz,
 }) => {
-  const allSessions = plans.flatMap((p) => p.sessions);
+  const [filterSubjectId, setFilterSubjectId] = useState(activeSubjectId || 'all');
+
+  useEffect(() => {
+    setFilterSubjectId(activeSubjectId || 'all');
+  }, [activeSubjectId]);
+
+  const visibleTopicAnalytics = topicAnalytics.filter((topic) => filterSubjectId === 'all' || topic.subjectId === filterSubjectId);
+  const visibleAttempts = attempts.filter((attempt) => filterSubjectId === 'all' || attempt.subjectId === filterSubjectId);
+  const visiblePlans = plans.filter((plan) => filterSubjectId === 'all' || plan.subjectId === filterSubjectId);
+  const allSessions = visiblePlans.flatMap((p) => p.sessions);
   const completedSessions = allSessions.filter((s) => s.status === 'completed');
 
-  const strongTopics = topicAnalytics.filter((t) => t.status === 'Strong');
-  const developingTopics = topicAnalytics.filter((t) => t.status === 'Developing');
-  const weakTopics = topicAnalytics.filter((t) => t.status === 'Needs revision');
-  const noDataTopics = topicAnalytics.filter((t) => t.status === 'Not enough data');
+  const strongTopics = visibleTopicAnalytics.filter((t) => t.status === 'Strong');
+  const developingTopics = visibleTopicAnalytics.filter((t) => t.status === 'Developing');
+  const weakTopics = visibleTopicAnalytics.filter((t) => t.status === 'Needs revision');
+  const noDataTopics = visibleTopicAnalytics.filter((t) => t.status === 'Not enough data');
 
-  // Study hours distribution by day (Mon - Sun simulation based on studyHoursThisWeek)
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const dailyHours = [1.5, 2.0, 1.0, 2.0, 0, 0, 0]; // totals 6.5h matching user profile
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const dailyHours = days.map((_, dayIndex) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + dayIndex);
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return Math.round(completedSessions
+      .filter((session) => session.completedAt?.slice(0, 10) === dateKey)
+      .reduce((total, session) => total + session.durationMinutes / 60, 0) * 10) / 10;
+  });
+  const filteredStudyHours = dailyHours.reduce((total, hours) => total + hours, 0);
 
   const achievements = [
     {
@@ -69,7 +92,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       id: 'ach-quizzes',
       title: 'Active Assessment Pioneer',
       description: 'Completed 3 or more full quiz assessments.',
-      unlocked: attempts.length >= 3,
+      unlocked: visibleAttempts.length >= 3,
       icon: ShieldCheck,
       color: 'text-emerald-400',
     },
@@ -84,14 +107,19 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <BarChart3 size={20} className="text-purple-400" />
             <span>Progress & Adaptive Mastery Analytics</span>
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Real performance telemetry calculating topic mastery levels from verified quiz submissions.
-          </p>
+          <p className="text-xs text-slate-400 mt-1">Performance calculated from saved quiz attempts and completed plan sessions.</p>
         </div>
 
         <div className="flex items-center gap-2">
+          <label className="text-xs text-slate-400">
+            <span className="sr-only">Filter analytics by subject</span>
+            <select aria-label="Filter analytics by subject" value={filterSubjectId} onChange={(event) => setFilterSubjectId(event.target.value)} className="max-w-[190px] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300">
+              <option value="all">All subjects</option>
+              {subjects.filter((subject) => !subject.archivedAt).map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+            </select>
+          </label>
           <span className="px-3 py-1 rounded-lg bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold">
-            {topicAnalytics.length} Topics Tracked
+            {visibleTopicAnalytics.length} Topics Tracked
           </span>
         </div>
       </div>
@@ -143,9 +171,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Clock size={16} className="text-blue-400" />
-                <span>Weekly Study Activity ({user.studyHoursThisWeek} hrs total)</span>
+                <span>Weekly Study Activity ({filteredStudyHours} saved hrs)</span>
               </h3>
-              <p className="text-xs text-slate-400">Target: {user.preferredHoursPerDay * 7} hrs/week</p>
+              <p className="text-xs text-slate-400">Hours from completed sessions saved this week.</p>
             </div>
             <span className="text-xs font-mono font-bold text-amber-400">
               🔥 {user.streakDays} Day Streak Active
@@ -193,13 +221,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-emerald-400 font-semibold">Strong (&gt;=80%)</span>
                 <span className="text-slate-300 font-mono">
-                  {Math.round((strongTopics.length / (topicAnalytics.length || 1)) * 100)}%
+                  {Math.round((strongTopics.length / (visibleTopicAnalytics.length || 1)) * 100)}%
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2">
                 <div
                   className="bg-emerald-500 h-full rounded-full transition-all"
-                  style={{ width: `${(strongTopics.length / (topicAnalytics.length || 1)) * 100}%` }}
+                  style={{ width: `${(strongTopics.length / (visibleTopicAnalytics.length || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -208,13 +236,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-blue-400 font-semibold">Developing (60-79%)</span>
                 <span className="text-slate-300 font-mono">
-                  {Math.round((developingTopics.length / (topicAnalytics.length || 1)) * 100)}%
+                  {Math.round((developingTopics.length / (visibleTopicAnalytics.length || 1)) * 100)}%
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2">
                 <div
                   className="bg-blue-500 h-full rounded-full transition-all"
-                  style={{ width: `${(developingTopics.length / (topicAnalytics.length || 1)) * 100}%` }}
+                  style={{ width: `${(developingTopics.length / (visibleTopicAnalytics.length || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -223,13 +251,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-rose-400 font-semibold">Needs Revision (&lt;60%)</span>
                 <span className="text-slate-300 font-mono">
-                  {Math.round((weakTopics.length / (topicAnalytics.length || 1)) * 100)}%
+                  {Math.round((weakTopics.length / (visibleTopicAnalytics.length || 1)) * 100)}%
                 </span>
               </div>
               <div className="w-full bg-slate-800 rounded-full h-2">
                 <div
                   className="bg-rose-500 h-full rounded-full transition-all"
-                  style={{ width: `${(weakTopics.length / (topicAnalytics.length || 1)) * 100}%` }}
+                  style={{ width: `${(weakTopics.length / (visibleTopicAnalytics.length || 1)) * 100}%` }}
                 />
               </div>
             </div>

@@ -57,17 +57,42 @@ export const api = {
     color?: string;
     icon?: string;
     examinationDate?: string;
+    starterTopics?: string[];
   }): Promise<Subject> {
     const res = await fetch('/api/subjects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not create subject');
+    return body;
+  },
+  async updateSubject(id: string, data: Partial<Pick<Subject, 'name' | 'code' | 'examinationDate'>>): Promise<Subject> {
+    const res = await fetch(`/api/subjects/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not update subject');
+    return body;
+  },
+  async archiveSubject(id: string, archived: boolean): Promise<Subject> {
+    const res = await fetch(`/api/subjects/${id}/archive`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not update subject archive state');
+    return body;
   },
   async deleteSubject(id: string): Promise<{ success: boolean }> {
     const res = await fetch(`/api/subjects/${id}`, { method: 'DELETE' });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not delete subject');
+    return body;
   },
 
   // Topics
@@ -88,7 +113,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not create topic');
+    return body;
   },
   async updateTopic(id: string, data: Partial<Topic>): Promise<Topic> {
     const res = await fetch(`/api/topics/${id}`, {
@@ -190,6 +217,7 @@ export const api = {
     message: string;
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
     subjectName?: string;
+    topicName?: string;
     mode?: string;
     difficulty?: string;
     pendingTool?: { name: string; arguments: Record<string, unknown> };

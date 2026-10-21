@@ -1,9 +1,13 @@
 import React from 'react';
 import { Menu, Mic, Flame, Clock, RefreshCw, Sparkles } from 'lucide-react';
 import { NavView } from './Sidebar.js';
+import { Subject } from '../types.js';
 
 interface NavbarProps {
   currentView: NavView;
+  subjects: Subject[];
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   onOpenMobileMenu: () => void;
   onOpenVoice: () => void;
   onOpenAlexaTools: () => void;
@@ -15,6 +19,9 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentView,
+  subjects,
+  activeSubjectId,
+  onSelectSubject,
   onOpenMobileMenu,
   onOpenVoice,
   onOpenAlexaTools,
@@ -59,6 +66,21 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="flex items-center gap-2 lg:gap-3">
+        <label className="min-w-0">
+          <span className="sr-only">Active subject</span>
+          <select
+            aria-label="Active subject"
+            value={activeSubjectId}
+            onChange={(event) => onSelectSubject(event.target.value)}
+            className="max-w-[135px] sm:max-w-[190px] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+          >
+            {subjects.filter((subject) => !subject.archivedAt).map((subject) => (
+              <option key={subject.id} value={subject.id}>{subject.name}</option>
+            ))}
+            {!subjects.some((subject) => !subject.archivedAt) && <option value="">Add a subject</option>}
+          </select>
+        </label>
+
         {/* Streak Pill */}
         <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
           <Flame size={14} className="fill-amber-400 animate-pulse" />

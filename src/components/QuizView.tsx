@@ -18,6 +18,8 @@ import { api } from '../api.js';
 
 interface QuizViewProps {
   subjects: Subject[];
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   topics: Topic[];
   attempts: QuizAttempt[];
   initialTopicId?: string;
@@ -31,6 +33,8 @@ interface QuizViewProps {
 
 export const QuizView: React.FC<QuizViewProps> = ({
   subjects,
+  activeSubjectId,
+  onSelectSubject,
   topics,
   attempts,
   initialTopicId,
@@ -43,7 +47,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
 }) => {
   // Setup state
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    subjects[0]?.id || ''
+    activeSubjectId || subjects.find((subject) => !subject.archivedAt)?.id || ''
   );
   const [selectedTopicId, setSelectedTopicId] = useState<string>(
     initialTopicId || topics[0]?.id || ''
@@ -67,6 +71,14 @@ export const QuizView: React.FC<QuizViewProps> = ({
   const [completedAttempt, setCompletedAttempt] = useState<QuizAttempt | null>(null);
 
   // Set topic if passed as prop
+  useEffect(() => {
+    if (activeSubjectId && activeSubjectId !== selectedSubjectId) {
+      setSelectedSubjectId(activeSubjectId);
+      const nextTopic = topics.find((topic) => topic.subjectId === activeSubjectId);
+      if (nextTopic) setSelectedTopicId(nextTopic.id);
+    }
+  }, [activeSubjectId, topics]);
+
   useEffect(() => {
     if (initialTopicId) {
       setSelectedTopicId(initialTopicId);
@@ -507,12 +519,13 @@ export const QuizView: React.FC<QuizViewProps> = ({
                   value={selectedSubjectId}
                   onChange={(e) => {
                     setSelectedSubjectId(e.target.value);
+                    onSelectSubject(e.target.value);
                     const matching = topics.filter((t) => t.subjectId === e.target.value);
                     if (matching[0]) setSelectedTopicId(matching[0].id);
                   }}
                   className="w-full bg-slate-800/80 text-white text-xs rounded-xl px-3.5 py-2.5 border border-slate-700"
                 >
-                  {subjects.map((s) => (
+                  {subjects.filter((subject) => !subject.archivedAt).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({s.code})
                     </option>

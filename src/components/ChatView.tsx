@@ -19,6 +19,9 @@ import { api } from '../api.js';
 
 interface ChatViewProps {
   subjects: Subject[];
+  topics: import('../types.js').Topic[];
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   conversations: Conversation[];
   adaptiveCoachLaunchId: number;
   onRefreshConversations: () => void;
@@ -27,6 +30,9 @@ interface ChatViewProps {
 
 export const ChatView: React.FC<ChatViewProps> = ({
   subjects,
+  topics,
+  activeSubjectId,
+  onSelectSubject,
   conversations,
   adaptiveCoachLaunchId,
   onRefreshConversations,
@@ -40,8 +46,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
   );
   const [inputText, setInputText] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>(
-    subjects[0]?.name || 'Algorithms & Data Structures'
+    subjects.find((subject) => subject.id === activeSubjectId)?.name || subjects.find((subject) => !subject.archivedAt)?.name || 'General Studies'
   );
+  const [selectedTopicId, setSelectedTopicId] = useState('');
+  const selectedSubjectId = subjects.find((subject) => subject.name === selectedSubject)?.id;
+  const availableTopics = topics.filter((topic) => topic.subjectId === selectedSubjectId);
   const [mode, setMode] = useState<'simple' | 'exam' | 'tutorial' | 'revision' | 'practice'>('simple');
   const [difficulty, setDifficulty] = useState<'beginner' | 'intermediate' | 'advanced'>('intermediate');
   const [isLoading, setIsLoading] = useState(false);
@@ -58,6 +67,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    const activeSubject = subjects.find((subject) => subject.id === activeSubjectId && !subject.archivedAt);
+    if (activeSubject) {
+      setSelectedSubject(activeSubject.name);
+      setSelectedTopicId(topics.find((topic) => topic.subjectId === activeSubject.id)?.id || '');
+    }
+  }, [activeSubjectId, subjects, topics]);
 
   // Sync when conversations change externally
   useEffect(() => {
@@ -98,6 +115,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           };
         }),
         subjectName: selectedSubject,
+        topicName: topics.find((topic) => topic.id === selectedTopicId)?.name,
         mode,
         difficulty,
         pendingTool: previousPending ? { name: previousPending.name, arguments: previousPending.params } : undefined,
@@ -331,15 +349,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </span>
             <select
               value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              onChange={(e) => {
+                setSelectedSubject(e.target.value);
+                const subject = subjects.find((item) => item.name === e.target.value);
+                if (subject) onSelectSubject(subject.id);
+              }}
               className="bg-slate-800/80 text-white text-xs rounded-lg px-2.5 py-1 border border-slate-700 focus:outline-none focus:border-purple-500"
             >
-              {subjects.map((s) => (
+              {subjects.filter((subject) => !subject.archivedAt).map((s) => (
                 <option key={s.id} value={s.name}>
                   {s.name}
                 </option>
               ))}
               <option value="General Studies">General Studies</option>
+            </select>
+            <select
+              aria-label="Tutor topic"
+              value={selectedTopicId}
+              onChange={(event) => setSelectedTopicId(event.target.value)}
+              className="max-w-44 bg-slate-800/80 text-white text-xs rounded-lg px-2.5 py-1 border border-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+            >
+              <option value="">Any topic</option>
+              {availableTopics.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}
             </select>
           </div>
 

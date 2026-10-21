@@ -12,13 +12,20 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  Search,
+  Pencil,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 import { Subject, Topic } from '../types.js';
 import { api } from '../api.js';
+import { SUBJECT_CATALOG } from '../utils/subjectCatalog.js';
 
 interface SubjectsViewProps {
   subjects: Subject[];
   topics: Topic[];
+  activeSubjectId: string;
+  onSelectSubject: (subjectId: string) => void;
   onRefreshData: () => void;
   onStartQuizWithNotes: (topicId: string, topicName: string) => void;
 }
@@ -26,15 +33,18 @@ interface SubjectsViewProps {
 export const SubjectsView: React.FC<SubjectsViewProps> = ({
   subjects,
   topics,
+  activeSubjectId,
+  onSelectSubject,
   onRefreshData,
   onStartQuizWithNotes,
 }) => {
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    subjects[0]?.id || ''
-  );
-
   // New Subject Modal
   const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [selectedCatalogName, setSelectedCatalogName] = useState('custom');
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [subjectError, setSubjectError] = useState('');
   const [newSubName, setNewSubName] = useState('');
   const [newSubCode, setNewSubCode] = useState('');
   const [newSubColor, setNewSubColor] = useState('#8b5cf6');
@@ -55,31 +65,93 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
     suggestedQuestions: string[];
   } | null>(null);
 
-  const activeSubject = subjects.find((s) => s.id === selectedSubjectId) || subjects[0];
+  const activeSubject = subjects.find((s) => s.id === activeSubjectId && !s.archivedAt)
+    || subjects.find((subject) => !subject.archivedAt);
   const activeTopics = topics.filter((t) => t.subjectId === activeSubject?.id);
+  const visibleSubjects = subjects.filter((subject) => {
+    const matchesArchive = showArchived ? Boolean(subject.archivedAt) : !subject.archivedAt;
+    const query = subjectSearch.trim().toLowerCase();
+    return matchesArchive && (!query || subject.name.toLowerCase().includes(query) || subject.code.toLowerCase().includes(query));
+  });
+
+  const handleCatalogChange = (value: string) => {
+    setSelectedCatalogName(value);
+    const entry = SUBJECT_CATALOG.find((subject) => subject.name === value);
+    if (!entry) return;
+    setNewSubName(entry.name);
+    setNewSubCode(entry.code);
+    setNewSubColor(entry.color);
+  };
 
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubName.trim()) return;
+    setSubjectError('');
 
-    await api.createSubject({
-      name: newSubName.trim(),
-      code: newSubCode.trim() || newSubName.slice(0, 4).toUpperCase(),
-      color: newSubColor,
-      examinationDate: newSubExamDate || undefined,
-    });
+    try {
+      const catalogEntry = SUBJECT_CATALOG.find((subject) => subject.name === selectedCatalogName);
+      if (editingSubject) {
+        await api.updateSubject(editingSubject.id, {
+          name: newSubName.trim(),
+          code: newSubCode.trim() || newSubName.slice(0, 4).toUpperCase(),
+          examinationDate: newSubExamDate || undefined,
+        });
+      } else {
+        const created = await api.createSubject({
+          name: newSubName.trim(),
+          code: newSubCode.trim() || newSubName.slice(0, 4).toUpperCase(),
+          color: newSubColor,
+          examinationDate: newSubExamDate || undefined,
+          starterTopics: catalogEntry?.starterTopics,
+        });
+        onSelectSubject(created.id);
+      }
 
-    setNewSubName('');
-    setNewSubCode('');
-    setShowSubjectModal(false);
-    onRefreshData();
+      setNewSubName('');
+      setNewSubCode('');
+      setNewSubExamDate('');
+      setSelectedCatalogName('custom');
+      setEditingSubject(null);
+      setShowSubjectModal(false);
+      await onRefreshData();
+    } catch (err) {
+      setSubjectError(err instanceof Error ? err.message : 'Could not save subject.');
+    }
   };
 
   const handleDeleteSubject = async (id: string) => {
     if (confirm('Are you sure you want to delete this subject and its topics?')) {
-      await api.deleteSubject(id);
-      onRefreshData();
+      try {
+        await api.deleteSubject(id);
+        if (activeSubjectId === id) onSelectSubject(subjects.find((subject) => subject.id !== id && !subject.archivedAt)?.id || '');
+        await onRefreshData();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Could not delete subject. Archive it to preserve its history.');
+      }
     }
+  };
+
+  const handleArchiveSubject = async (subject: Subject) => {
+    const archived = !subject.archivedAt;
+    if (!confirm(`${archived ? 'Archive' : 'Restore'} ${subject.name}? ${archived ? 'It will be hidden from learning selectors, while its progress remains saved.' : ''}`)) return;
+    try {
+      await api.archiveSubject(subject.id, archived);
+      if (archived && activeSubjectId === subject.id) onSelectSubject(subjects.find((item) => item.id !== subject.id && !item.archivedAt)?.id || '');
+      await onRefreshData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not update subject.');
+    }
+  };
+
+  const startEditingSubject = (subject: Subject) => {
+    setEditingSubject(subject);
+    setSelectedCatalogName('custom');
+    setNewSubName(subject.name);
+    setNewSubCode(subject.code);
+    setNewSubColor(subject.color);
+    setNewSubExamDate(subject.examinationDate || '');
+    setSubjectError('');
+    setShowSubjectModal(true);
   };
 
   const handleCreateTopic = async (e: React.FormEvent) => {
@@ -166,30 +238,31 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
         </button>
       </div>
 
-      {/* Subject Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-        {subjects.map((sub) => {
-          const isSelected = activeSubject?.id === sub.id;
-          return (
-            <button
-              key={sub.id}
-              onClick={() => setSelectedSubjectId(sub.id)}
-              className={`shrink-0 px-4 py-2.5 rounded-xl font-semibold text-xs whitespace-nowrap transition-all flex items-center gap-2 border ${
-                isSelected
-                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/25'
-                  : 'bg-slate-900/60 text-slate-400 hover:text-white border-slate-800'
-              }`}
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: sub.color || '#8b5cf6' }}
-              />
-              <span>{sub.name}</span>
-              <span className="text-[10px] opacity-75">({sub.code})</span>
-            </button>
-          );
-        })}
-      </div>
+      <section className="space-y-3" aria-label="Subject list">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative min-w-0 flex-1">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input value={subjectSearch} onChange={(event) => setSubjectSearch(event.target.value)} placeholder="Search subjects or course codes" className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300" />
+          </label>
+          <button type="button" onClick={() => setShowArchived((value) => !value)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800">
+            {showArchived ? 'Show active subjects' : 'Show archived'}
+          </button>
+        </div>
+        {visibleSubjects.length ? (
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {visibleSubjects.map((subject) => (
+              <div key={subject.id} className={`flex shrink-0 items-center gap-1 rounded-lg border p-1 ${activeSubject?.id === subject.id ? 'border-cyan-500/50 bg-cyan-950/20' : 'border-slate-800 bg-slate-900/60'}`}>
+                <button type="button" onClick={() => !subject.archivedAt && onSelectSubject(subject.id)} className="flex items-center gap-2 px-2 py-1.5 text-left text-xs text-slate-100" aria-pressed={activeSubject?.id === subject.id}>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: subject.color || '#8b5cf6' }} />
+                  <span>{subject.name}</span><span className="text-slate-500">{subject.code}</span>
+                </button>
+                {!subject.archivedAt && <button type="button" title={`Edit ${subject.name}`} onClick={() => startEditingSubject(subject)} className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"><Pencil size={13} /></button>}
+                <button type="button" title={subject.archivedAt ? `Restore ${subject.name}` : `Archive ${subject.name}`} onClick={() => void handleArchiveSubject(subject)} className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white">{subject.archivedAt ? <RotateCcw size={13} /> : <Archive size={13} />}</button>
+              </div>
+            ))}
+          </div>
+        ) : <p className="rounded-lg border border-dashed border-slate-700 p-5 text-center text-xs text-slate-400">{showArchived ? 'No archived subjects.' : 'No subjects match this search. Add a catalog subject or create a custom one.'}</p>}
+      </section>
 
       {activeSubject && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -217,6 +290,13 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
                   <span>Add Topic</span>
                 </button>
                 <button
+                  onClick={() => startEditingSubject(activeSubject)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  title="Edit subject"
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
                   onClick={() => handleDeleteSubject(activeSubject.id)}
                   className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors"
                   title="Delete Subject"
@@ -226,9 +306,9 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
               </div>
             </div>
 
-            {activeTopics.length === 0 ? (
+              {activeTopics.length === 0 ? (
               <p className="text-xs text-slate-400 text-center py-6">
-                No topics added to this subject yet. Click "+ Add Topic" to start tracking.
+                No topics added to this subject yet. Add your course topics or analyze relevant notes; no official syllabus is assumed.
               </p>
             ) : (
               <div className="space-y-2.5">
@@ -358,8 +438,18 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
       {showSubjectModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-3">Add New Subject</h3>
+            <h3 className="text-base font-bold text-white mb-3">{editingSubject ? 'Edit Subject' : 'Add Subject'}</h3>
             <form onSubmit={handleCreateSubject} className="space-y-3">
+              {!editingSubject && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Starting point</label>
+                  <select value={selectedCatalogName} onChange={(event) => handleCatalogChange(event.target.value)} className="w-full bg-slate-800 text-white text-xs rounded-xl px-3 py-2 border border-slate-700">
+                    <option value="custom">Custom subject (add your own topics)</option>
+                    {SUBJECT_CATALOG.map((entry) => <option key={entry.name} value={entry.name}>{entry.name} starter topics</option>)}
+                  </select>
+                  {selectedCatalogName !== 'custom' && <p className="mt-1 text-[11px] text-amber-200">Starter topic suggestions only; verify them against your course materials.</p>}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Subject Name</label>
                 <input
@@ -393,6 +483,8 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
                   />
                 </div>
               </div>
+
+              {subjectError && <p role="alert" className="text-xs text-rose-300">{subjectError}</p>}
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-800">
                 <button

@@ -33,6 +33,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [adaptiveCoachLaunchId, setAdaptiveCoachLaunchId] = useState(0);
+  const [activeSubjectId, setActiveSubjectId] = useState('');
 
   // Core Data States
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -68,6 +69,15 @@ export default function App() {
 
       setUser(userData);
       setSubjects(subjectsData);
+      const nextActiveSubject = subjectsData.find((subject) => subject.id === userData.activeSubjectId && !subject.archivedAt)
+        || subjectsData.find((subject) => !subject.archivedAt && /data structures|\bDSA\b/i.test(subject.name))
+        || subjectsData.find((subject) => !subject.archivedAt);
+      setActiveSubjectId(nextActiveSubject?.id || '');
+      if (nextActiveSubject && userData.activeSubjectId !== nextActiveSubject.id) {
+        void api.updateUser({ activeSubjectId: nextActiveSubject.id }).catch((error) => {
+          console.error('Could not persist active subject:', error);
+        });
+      }
       setTopics(topicsData);
       setPlans(plansData);
       setQuizAttempts(attemptsData);
@@ -81,6 +91,18 @@ export default function App() {
   useEffect(() => {
     refreshAllData();
   }, []);
+
+  const handleSelectActiveSubject = async (subjectId: string) => {
+    const subject = subjects.find((item) => item.id === subjectId && !item.archivedAt);
+    if (!subject) return;
+    setActiveSubjectId(subject.id);
+    setUser((current) => current ? { ...current, activeSubjectId: subject.id } : current);
+    try {
+      await api.updateUser({ activeSubjectId: subject.id });
+    } catch (error) {
+      console.error('Could not save active subject:', error);
+    }
+  };
 
   const handleCompleteSession = async (planId: string, sessionId: string) => {
     try {
@@ -138,6 +160,9 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar
             currentView={currentView}
+            subjects={subjects}
+            activeSubjectId={activeSubjectId}
+            onSelectSubject={handleSelectActiveSubject}
             onOpenMobileMenu={() => setIsMobileOpen(true)}
             onOpenVoice={() => setCurrentView('voice')}
             onOpenAlexaTools={() => setCurrentView('alexa-plus')}
@@ -157,6 +182,8 @@ export default function App() {
                 topicAnalytics={analytics?.topicAnalytics || []}
                 recommendations={analytics?.recommendations || []}
                 onNavigate={setCurrentView}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={handleSelectActiveSubject}
                 onStartAdaptiveCoach={handleStartAdaptiveCoach}
                 onStartQuiz={handleStartQuizWithTopic}
                 onCompleteSession={handleCompleteSession}
@@ -167,6 +194,9 @@ export default function App() {
             {currentView === 'chat' && (
               <ChatView
                 subjects={subjects}
+                topics={topics}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={(subjectId) => { void handleSelectActiveSubject(subjectId); }}
                 conversations={conversations}
                 adaptiveCoachLaunchId={adaptiveCoachLaunchId}
                 onRefreshConversations={refreshAllData}
@@ -186,6 +216,8 @@ export default function App() {
               <PlannerView
                 plans={plans}
                 subjects={subjects}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={(subjectId) => { void handleSelectActiveSubject(subjectId); }}
                 topicAnalytics={analytics?.topicAnalytics || []}
                 onRefreshPlans={refreshAllData}
                 onCompleteSession={handleCompleteSession}
@@ -195,6 +227,8 @@ export default function App() {
             {currentView === 'quiz' && (
               <QuizView
                 subjects={subjects}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={(subjectId) => { void handleSelectActiveSubject(subjectId); }}
                 topics={topics}
                 attempts={quizAttempts}
                 initialTopicId={quizInitialTopic.id}
@@ -211,6 +245,8 @@ export default function App() {
               <SubjectsView
                 subjects={subjects}
                 topics={topics}
+                activeSubjectId={activeSubjectId}
+                onSelectSubject={(subjectId) => { void handleSelectActiveSubject(subjectId); }}
                 onRefreshData={refreshAllData}
                 onStartQuizWithNotes={handleStartQuizWithTopic}
               />
@@ -219,6 +255,8 @@ export default function App() {
             {currentView === 'analytics' && user && (
               <AnalyticsView
                 user={user}
+                subjects={subjects}
+                activeSubjectId={activeSubjectId}
                 topicAnalytics={analytics?.topicAnalytics || []}
                 attempts={quizAttempts}
                 plans={plans}

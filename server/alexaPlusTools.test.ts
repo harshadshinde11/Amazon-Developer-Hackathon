@@ -227,3 +227,59 @@ test('adaptive coach asks for a missing exam date and resumes with the clarifica
   assert.equal(db.getStudyPlans().length, 1);
   assert.equal(db.getStudyPlans()[0].examDate, dateOffset(14));
 });
+
+test('adaptive coach end-to-end uses diagnostic results to recommend and save revision plan', async () => {
+  db.resetToEmpty();
+  const { subject, topic } = createSubjectAndTopic(dateOffset(12));
+  const diagnostic = await routeStudyAssistantRequest(`Help me prepare for my exam in ${subject.name}`);
+  const quizData = diagnostic.data as { quizId: string; questions: Array<{ correctAnswer: number; options: string[] }> };
+  const selectedAnswers = quizData.questions.map((question, index) =>
+    index < 2 ? question.correctAnswer : question.correctAnswer === 0 ? 1 : 0
+  );
+
+  const evaluation = await executeAlexaTool('evaluate_quiz', {
+    quiz_id: quizData.quizId,
+    selected_answers: selectedAnswers,
+    time_spent_seconds: 90,
+  });
+  const recommendations = await executeAlexaTool('recommend_revision');
+  const coach = await routeStudyAssistantRequest(`Help me prepare for my exam in ${subject.name}; 1 hour per day`);
+  const savedPlan = db.getStudyPlans()[0];
+
+  assert.equal(diagnostic.action, 'DIAGNOSTIC_REQUIRED');
+  assert.equal(evaluation.success, true);
+  assert.equal((evaluation.data as { percentage: number }).percentage, 40);
+  assert.ok((recommendations.data as { weakTopics: Array<{ topicId: string }> }).weakTopics.some((weak) => weak.topicId === topic.id));
+  assert.equal(coach.success, true);
+  assert.equal(savedPlan.examDate, subject.examinationDate);
+  assert.ok(savedPlan.sessions.length > 0);
+  assert.ok(coach.actionHistory?.some((action) => action.dataUsed.some((item) => item.includes(`${topic.name} (40%`))));
+});
+
+test('concurrent identical adaptive coach requests persist only one plan', async () => {
+  db.resetToEmpty();
+  const { subject, topic } = createSubjectAndTopic(dateOffset(12));
+  db.saveQuizAttempt({
+    userId: db.getUser().id,
+    subjectId: subject.id,
+    subjectName: subject.name,
+    topicId: topic.id,
+    topicName: topic.name,
+    difficulty: 'intermediate',
+    score: 2,
+    totalQuestions: 5,
+    percentage: 40,
+    timeSpentSeconds: 60,
+    answers: [],
+  });
+  const request = `Prepare me for my exam in ${subject.name}; 1 hour per day`;
+
+  const results = await Promise.all([
+    routeStudyAssistantRequest(request),
+    routeStudyAssistantRequest(request),
+  ]);
+
+  assert.equal(db.getStudyPlans().length, 1);
+  assert.ok(results.every((result) => result.success));
+  assert.ok(results.some((result) => result.actionHistory?.at(-1)?.status === 'reused'));
+});
