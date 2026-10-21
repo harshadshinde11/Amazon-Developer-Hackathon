@@ -14,19 +14,21 @@ import {
   HelpCircle,
   GraduationCap,
 } from 'lucide-react';
-import { ChatMessage, Conversation, Subject } from '../types.js';
+import { ChatMessage, Conversation, QuizQuestion, Subject } from '../types.js';
 import { api } from '../api.js';
 
 interface ChatViewProps {
   subjects: Subject[];
   conversations: Conversation[];
   onRefreshConversations: () => void;
+  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
   subjects,
   conversations,
   onRefreshConversations,
+  onStartQuizWithTopic,
 }) => {
   const [activeConvId, setActiveConvId] = useState<string>(
     conversations[0]?.id || `conv_${Date.now()}`
@@ -82,20 +84,31 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setIsLoading(true);
 
     try {
-      const response = await api.chatWithAI({
-        messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+      const previousPending = [...messages].reverse().find((message) => message.role === 'assistant' && message.pendingTool)?.pendingTool;
+      const response = await api.runAssistant({
+        message: content,
         subjectName: selectedSubject,
         mode,
         difficulty,
+        pendingTool: previousPending ? { name: previousPending.name, arguments: previousPending.params } : undefined,
       });
 
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now()}_a`,
         role: 'assistant',
-        content: response.content,
+        content: response.speech,
         timestamp: new Date().toISOString(),
         mode,
         subjectName: selectedSubject,
+        toolCall: response.toolCall ? {
+          name: response.toolCall.name,
+          params: response.toolCall.arguments,
+          result: response.toolCall.result,
+        } : undefined,
+        pendingTool: response.pendingTool ? {
+          name: response.pendingTool.name,
+          params: response.pendingTool.arguments,
+        } : undefined,
       };
 
       const finalMessages = [...newMessages, assistantMessage];
@@ -443,6 +456,62 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       return <p key={i} className="whitespace-pre-wrap">{block}</p>;
                     })}
                   </div>
+
+                  {msg.role === 'assistant' && msg.toolCall && (() => {
+                    const invocation = msg.toolCall.result as any;
+                    const resultData = invocation?.data;
+                    const questions = resultData?.questions as QuizQuestion[] | undefined;
+                    return (
+                      <div className="mt-3 rounded-lg border border-emerald-500/25 bg-slate-950/60 p-3 text-xs">
+                        <div className="flex items-center gap-2 text-emerald-300 font-semibold">
+                          <Check size={13} />
+                          <span>Ran {msg.toolCall.name}</span>
+                          <span className="ml-auto text-slate-400">{invocation?.success ? 'Complete' : 'Failed'}</span>
+                        </div>
+                        {invocation?.success && msg.toolCall.name === 'create_study_plan' && resultData && (
+                          <p className="mt-2 text-slate-300">
+                            Saved {resultData.title} for {resultData.subjectName}; {resultData.sessions?.length || 0} sessions through {resultData.examDate}.
+                          </p>
+                        )}
+                        {invocation?.success && msg.toolCall.name === 'generate_quiz' && resultData && (
+                          <div className="mt-2 space-y-2">
+                            <p className="text-slate-300">{resultData.totalQuestions} questions on {resultData.topicName}.</p>
+                            {questions?.slice(0, 3).map((question, index) => (
+                              <p key={question.id} className="text-slate-400">{index + 1}. {question.question}</p>
+                            ))}
+                            <button
+                              onClick={() => onStartQuizWithTopic(resultData.topicId, resultData.topicName, questions)}
+                              className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-blue-600/80 px-3 py-1.5 font-semibold text-white hover:bg-blue-500"
+                            >
+                              <GraduationCap size={13} /> Take and submit quiz
+                            </button>
+                          </div>
+                        )}
+                        {invocation?.success && msg.toolCall.name === 'get_student_progress' && resultData && (
+                          <div className="mt-2 text-slate-300">
+                            <p>{resultData.quizAttempts?.length || 0} saved quiz attempts; {resultData.studySessions?.length || 0} saved study sessions.</p>
+                            {resultData.topicPerformance?.map((topic: any) => (
+                              <p key={topic.topicId} className="mt-1 text-slate-400">
+                                {topic.topicName}: {topic.attemptsCount ? `${topic.averageScore}% average` : 'no saved quiz score'} ({topic.status})
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {invocation?.success && msg.toolCall.name === 'recommend_revision' && resultData && (
+                          <div className="mt-2 space-y-1 text-slate-300">
+                            {resultData.weakTopics?.map((topic: any) => (
+                              <p key={topic.topicId}>{topic.topicName}: {topic.averageScore}% average from {topic.attemptsCount} attempts</p>
+                            ))}
+                            {!resultData.weakTopics?.length && <p>No saved topic is currently below the revision threshold.</p>}
+                            {resultData.recommendations?.slice(0, 3).map((recommendation: any) => (
+                              <p key={recommendation.id} className="text-slate-400">{recommendation.title}: {recommendation.description}</p>
+                            ))}
+                          </div>
+                        )}
+                        {!invocation?.success && invocation?.error && <p className="mt-2 text-rose-300">{invocation.error}</p>}
+                      </div>
+                    );
+                  })()}
 
                   {msg.role === 'assistant' && (
                     <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">

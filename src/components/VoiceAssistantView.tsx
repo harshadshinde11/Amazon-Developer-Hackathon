@@ -15,10 +15,11 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { NavView } from './Sidebar.js';
+import { QuizQuestion } from '../types.js';
 
 interface VoiceAssistantViewProps {
   onNavigate: (view: NavView) => void;
-  onStartQuizWithTopic: (topicId?: string, topicName?: string) => void;
+  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => void;
   onRefreshData: () => void;
 }
 
@@ -30,6 +31,8 @@ interface VoiceMessage {
   text: string;
   timestamp: string;
   action?: string;
+  toolName?: string;
+  success?: boolean;
   data?: any;
 }
 
@@ -46,7 +49,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
     {
       id: 'v_welcome',
       sender: 'assistant',
-      text: 'Hello Harshad! I am StudyPilot, your Alexa-powered voice study companion. You can ask me to create study plans, explain topics, check your weakest concepts, or start a quiz.',
+      text: 'Hello Harshad! I am StudyPilot, a simulated Alexa-inspired study assistant in this web app. You can ask me to create study plans, explain topics, check saved progress, or start a quiz.',
       timestamp: new Date().toISOString(),
     },
   ]);
@@ -54,6 +57,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pendingToolRef = useRef<{ name: string; arguments: Record<string, unknown> } | undefined>(undefined);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -156,11 +160,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
         setState('idle');
       };
 
-      recognition.onend = () => {
-        if (state === 'listening') {
-          setState('idle');
-        }
-      };
+      recognition.onend = () => setState((current) => current === 'listening' ? 'idle' : current);
 
       recognitionRef.current = recognition;
       recognition.start();
@@ -193,21 +193,22 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
     setState('processing');
 
     try {
-      const result = await api.executeVoiceCommand(command);
+      const result = await api.executeVoiceCommand(command, pendingToolRef.current);
+      pendingToolRef.current = result.pendingTool;
 
       const assistantMsg: VoiceMessage = {
         id: `v_a_${Date.now()}`,
         sender: 'assistant',
         text: result.speech,
         action: result.action,
+        toolName: result.toolCall?.name || result.pendingTool?.name,
+        success: result.success,
         data: result.data,
         timestamp: new Date().toISOString(),
       };
 
       setConversation((prev) => [...prev, assistantMsg]);
-      onRefreshData();
-
-      // Trigger text to speech
+      if (result.success) onRefreshData();
       speakText(result.speech);
     } catch (err: any) {
       const errorMsg: VoiceMessage = {
@@ -222,9 +223,9 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
   };
 
   const sampleCommands = [
-    'StudyPilot, create a two-hour study plan for tomorrow',
-    'Explain binary search',
-    'Start a machine learning quiz',
+    'Create a two-hour study plan for Algorithms & Data Structures',
+    'Explain Breadth-First Search',
+    'Start a quiz on A* Search Algorithm',
     'What are my weakest topics?',
     'How much did I study this week?',
     'Recommend what I should revise next',
@@ -246,7 +247,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
               </span>
             </h2>
             <p className="text-xs text-slate-400">
-              Voice-first autonomous study workflows with speech recognition & spoken feedback.
+              Simulated Alexa+-style tools using saved StudyPilot data and browser speech.
             </p>
           </div>
         </div>
@@ -295,10 +296,10 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
             {state === 'listening'
               ? 'Listening to your voice...'
               : state === 'processing'
-              ? 'Analyzing with Gemini & Tool Routing...'
+              ? 'Processing request and checking saved study data...'
               : state === 'speaking'
               ? 'StudyPilot Speaking...'
-              : 'Idle — Ready for your voice command'}
+              : 'Idle - Ready for voice or text'}
           </span>
         </div>
 
@@ -431,12 +432,12 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
               {/* Action Banner for Tool Executions */}
               {msg.action && (
                 <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1">
+                  <span className={`text-[11px] font-semibold flex items-center gap-1 ${msg.success ? 'text-emerald-400' : 'text-amber-300'}`}>
                     <CheckCircle2 size={13} />
-                    <span>Tool Action Executed: {msg.action}</span>
+                    <span>{msg.toolName ? `Tool ${msg.toolName}` : 'Assistant response'}: {msg.success ? 'complete' : msg.action === 'ASK_FOR_DETAILS' ? 'needs details' : 'not completed'}</span>
                   </span>
 
-                  {msg.action === 'VIEW_PLAN' && (
+                  {msg.success && msg.toolName === 'create_study_plan' && (
                     <button
                       onClick={() => onNavigate('planner')}
                       className="px-2 py-1 rounded bg-purple-600/40 hover:bg-purple-600 text-white text-[11px] font-semibold"
@@ -445,24 +446,39 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
                     </button>
                   )}
 
-                  {msg.action === 'START_QUIZ' && (
+                  {msg.success && msg.toolName === 'generate_quiz' && (
                     <button
-                      onClick={() => onStartQuizWithTopic(undefined, 'Machine Learning')}
+                      onClick={() => onStartQuizWithTopic(msg.data?.topicId, msg.data?.topicName, msg.data?.questions as QuizQuestion[])}
                       className="px-2 py-1 rounded bg-blue-600/40 hover:bg-blue-600 text-white text-[11px] font-semibold"
                     >
-                      Open Quiz
+                      Take and submit quiz
                     </button>
                   )}
 
-                  {msg.action === 'SHOW_WEAK_TOPICS' && (
+                  {msg.success && (msg.toolName === 'recommend_revision' || msg.toolName === 'get_student_progress') && (
                     <button
                       onClick={() => onNavigate('analytics')}
                       className="px-2 py-1 rounded bg-amber-600/40 hover:bg-amber-600 text-white text-[11px] font-semibold"
                     >
-                      View Mastery Analytics
+                      View Saved Analytics
                     </button>
                   )}
                 </div>
+              )}
+              {msg.toolName === 'create_study_plan' && msg.success && msg.data && (
+                <p className="mt-2 text-xs text-slate-300">Saved: {msg.data.title} for {msg.data.subjectName}, {msg.data.sessions?.length || 0} sessions through {msg.data.examDate}.</p>
+              )}
+              {msg.toolName === 'get_student_progress' && msg.success && msg.data && (
+                <div className="mt-2 text-xs text-slate-300">
+                  <p>{msg.data.quizAttempts?.length || 0} saved quiz attempts and {msg.data.studySessions?.length || 0} saved study sessions.</p>
+                  {msg.data.topicPerformance?.map((topic: any) => <p key={topic.topicId}>{topic.topicName}: {topic.attemptsCount ? `${topic.averageScore}% average` : 'no saved quiz score'} ({topic.status})</p>)}
+                </div>
+              )}
+              {msg.toolName === 'recommend_revision' && msg.success && msg.data?.weakTopics?.map((topic: any) => (
+                <p key={topic.topicId} className="mt-2 text-xs text-slate-300">Revise {topic.topicName}: {topic.averageScore}% average from {topic.attemptsCount} saved attempts.</p>
+              ))}
+              {msg.toolName === 'generate_quiz' && msg.success && msg.data && (
+                <p className="mt-2 text-xs text-slate-300">Prepared {msg.data.totalQuestions} questions on {msg.data.topicName}; use "Take and submit quiz" to record your answers.</p>
               )}
             </div>
           ))}

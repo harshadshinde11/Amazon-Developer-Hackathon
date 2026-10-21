@@ -185,6 +185,30 @@ export const api = {
     });
     return res.json();
   },
+  async runAssistant(params: {
+    message: string;
+    subjectName?: string;
+    mode?: string;
+    difficulty?: string;
+    pendingTool?: { name: string; arguments: Record<string, unknown> };
+  }): Promise<{
+    recognizedIntent: string;
+    speech: string;
+    action: string;
+    data: any;
+    success: boolean;
+    pendingTool?: { name: string; arguments: Record<string, unknown> };
+    toolCall?: { name: string; arguments: Record<string, unknown>; result: any };
+  }> {
+    const res = await fetch('/api/ai/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Assistant request failed');
+    return body;
+  },
   async generateAIPlan(params: {
     subjectName: string;
     topics: Array<{ name: string; difficulty?: string; confidenceLevel?: number }>;
@@ -233,16 +257,19 @@ export const api = {
     });
     return res.json();
   },
-  async executeVoiceCommand(command: string): Promise<{
+  async executeVoiceCommand(command: string, pendingTool?: { name: string; arguments: Record<string, unknown> }): Promise<{
     recognizedIntent: string;
     speech: string;
     action: string;
     data: any;
+    success: boolean;
+    pendingTool?: { name: string; arguments: Record<string, unknown> };
+    toolCall?: { name: string; arguments: Record<string, unknown>; result: any };
   }> {
     const res = await fetch('/api/ai/voice-command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ command, pendingTool }),
     });
     return res.json();
   },

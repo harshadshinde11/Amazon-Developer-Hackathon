@@ -67,7 +67,7 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
     try {
       const res = await api.invokeAlexaTool(selectedTool, parsedArgs);
       setInvocationResult(res);
-      onRefreshData();
+      if (res.success) onRefreshData();
     } catch (err: any) {
       setInvocationResult({
         success: false,
@@ -96,19 +96,19 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-semibold mb-2">
               <Sparkles size={13} className="text-cyan-400" />
-              <span>Official Track Submission: Alexa+</span>
+              <span>In-App Alexa+-Inspired Simulation</span>
             </div>
             <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Amazon Developer Hackathon 2026 — Alexa+ Tools
+              Amazon Developer Hackathon 2026 - Study Assistant Tools
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              StudyPilot AI exposes a provider-agnostic, persistent service interface for Alexa+ voice devices and Model Context Protocol (MCP) clients. All tools validate parameters, read/write persistent records, and generate natural spoken voice replies.
+              A simulated conversational experience inside StudyPilot. The tools call this app's backend and JSON database; no official Alexa+ runtime, Alexa device, or MCP server is connected.
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold font-mono">
-              MCP v1.0 Ready
+              Local API Tools
             </span>
           </div>
         </div>
@@ -210,8 +210,8 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
             <div className="rounded-2xl bg-slate-900/80 border border-slate-700 p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-400" />
-                  <h4 className="text-sm font-bold text-white">Live Execution Result</h4>
+                  <CheckCircle2 size={16} className={invocationResult.success ? 'text-emerald-400' : 'text-rose-400'} />
+                  <h4 className="text-sm font-bold text-white">{invocationResult.success ? 'Tool completed' : 'Tool did not complete'}</h4>
                 </div>
                 <span className="text-xs font-mono text-slate-400">
                   {invocationResult.timestamp ? new Date(invocationResult.timestamp).toLocaleTimeString() : ''}
@@ -222,7 +222,7 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
               {invocationResult.speechText && (
                 <div className="p-3.5 rounded-xl bg-blue-950/20 border border-blue-500/30 text-xs">
                   <span className="font-bold text-blue-300 uppercase tracking-wider text-[10px] block mb-1">
-                    Spoken Voice Response (Sent to Alexa Speaker):
+                    Spoken Response Text (browser speech is available in Voice Assistant):
                   </span>
                   <p className="text-slate-200 text-sm italic">
                     "{invocationResult.speechText}"
@@ -262,14 +262,14 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
           <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-1.5">
             <span className="font-bold text-white block">2. Real Persistent Mutations</span>
             <p className="text-slate-400">
-              Invoking <code>create_study_plan</code> or <code>generate_quiz</code> actively mutates the database. Plans and quizzes immediately appear across the Planner and Quiz Center.
+              Invoking <code>create_study_plan</code> saves a plan. Generated quiz questions are interactive in Quiz Center; quiz attempts are saved only after submission.
             </p>
           </div>
 
           <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-1.5">
-            <span className="font-bold text-white block">3. Voice-First Natural Speech</span>
+            <span className="font-bold text-white block">3. Browser Speech</span>
             <p className="text-slate-400">
-              Every tool response includes concise, human-grade speech output designed for smart speakers and screenless voice interactions without cognitive overload.
+              Browser speech recognition and synthesis are used when supported. Typed input remains available; behavior depends on browser permissions and speech support.
             </p>
           </div>
         </div>

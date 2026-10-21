@@ -24,6 +24,7 @@ import {
   StudyPlan,
   QuizAttempt,
   Conversation,
+  QuizQuestion,
 } from './types.js';
 
 export default function App() {
@@ -42,7 +43,7 @@ export default function App() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
 
   // Selected topic for quiz transfer
-  const [quizInitialTopic, setQuizInitialTopic] = useState<{ id?: string; name?: string }>({});
+  const [quizInitialTopic, setQuizInitialTopic] = useState<{ id?: string; name?: string; questions?: QuizQuestion[] }>({});
 
   const refreshAllData = async () => {
     try {
@@ -101,8 +102,8 @@ export default function App() {
     }
   };
 
-  const handleStartQuizWithTopic = (topicId?: string, topicName?: string) => {
-    setQuizInitialTopic({ id: topicId, name: topicName });
+  const handleStartQuizWithTopic = (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => {
+    setQuizInitialTopic({ id: topicId, name: topicName, questions });
     setCurrentView('quiz');
   };
 
@@ -161,6 +162,7 @@ export default function App() {
                 subjects={subjects}
                 conversations={conversations}
                 onRefreshConversations={refreshAllData}
+                onStartQuizWithTopic={handleStartQuizWithTopic}
               />
             )}
 
@@ -189,6 +191,8 @@ export default function App() {
                 attempts={quizAttempts}
                 initialTopicId={quizInitialTopic.id}
                 initialTopicName={quizInitialTopic.name}
+                initialQuizQuestions={quizInitialTopic.questions}
+                onConsumeInitialQuiz={() => setQuizInitialTopic({})}
                 onRefreshData={refreshAllData}
                 onNavigateToChat={() => setCurrentView('chat')}
               />

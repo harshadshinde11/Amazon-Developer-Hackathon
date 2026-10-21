@@ -113,6 +113,10 @@ export interface ChatMessage {
     params?: Record<string, unknown>;
     result?: unknown;
   };
+  pendingTool?: {
+    name: string;
+    params: Record<string, unknown>;
+  };
 }
 
 export interface Conversation {

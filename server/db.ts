@@ -19,7 +19,7 @@ interface DatabaseSchema {
   conversations: Conversation[];
 }
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.env.STUDYPILOT_DATA_DIR || path.join(process.cwd(), 'data'));
 const DB_FILE = path.join(DATA_DIR, 'studypilot_db.json');
 
 const INITIAL_USER: UserProfile = {

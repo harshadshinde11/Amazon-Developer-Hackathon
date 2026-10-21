@@ -31,7 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     quiz: { title: 'Quiz Center & Assessment', subtitle: 'Adaptive diagnostic quizzes with detailed reviews' },
     subjects: { title: 'My Subjects & Notes', subtitle: 'Organize coursework, topics, and auto-summarize notes' },
     analytics: { title: 'Progress & Mastery Analytics', subtitle: 'Adaptive insights, streak metrics, and topic ratings' },
-    'alexa-plus': { title: 'Amazon Developer Hackathon 2026', subtitle: 'Official Alexa+ Track & MCP Tools Server' },
+    'alexa-plus': { title: 'Amazon Developer Hackathon 2026', subtitle: 'Alexa+-inspired in-app tool simulation' },
     settings: { title: 'Settings & Preferences', subtitle: 'Configure study targets, voice, and test datasets' },
   };
 

@@ -33,6 +33,7 @@ import {
 import {
   ALEXA_PLUS_TOOLS_MANIFEST,
   executeAlexaTool,
+  routeStudyAssistantRequest,
 } from './server/alexaPlusTools.js';
 import {
   computeTopicAnalytics,
@@ -286,6 +287,19 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
   }
 });
 
+app.post('/api/ai/assistant', async (req: Request, res: Response) => {
+  try {
+    const { message, subjectName, mode, difficulty, pendingTool } = req.body;
+    if (typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'A non-empty message is required' });
+    }
+    const result = await routeStudyAssistantRequest(message, { subjectName, mode, difficulty, pendingTool });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Assistant request failed' });
+  }
+});
+
 app.post(['/api/ai/plan', '/api/ai/study-plan'], async (req: Request, res: Response) => {
   try {
     const { subjectName, topics, examDate, hoursPerDay, weakTopics } = req.body;
@@ -343,89 +357,11 @@ app.post('/api/ai/summarize-notes', async (req: Request, res: Response) => {
 // Voice Command intent recognition & real tool execution
 app.post('/api/ai/voice-command', async (req: Request, res: Response) => {
   try {
-    const { command } = req.body;
+    const { command, subjectName, mode, difficulty, pendingTool } = req.body;
     if (!command || typeof command !== 'string') {
       return res.status(400).json({ error: 'Command string is required' });
     }
-
-    const lower = command.toLowerCase().trim();
-
-    // 1. Weak topics query
-    if (lower.includes('weak') || lower.includes('weakest') || lower.includes('what should i revise')) {
-      const toolRes = await executeAlexaTool('recommend_revision');
-      return res.json({
-        recognizedIntent: 'recommend_revision',
-        speech: toolRes.speechText,
-        action: 'SHOW_WEAK_TOPICS',
-        data: toolRes.data,
-      });
-    }
-
-    // 2. Study progress query
-    if (lower.includes('how much did i study') || lower.includes('progress') || lower.includes('streak') || lower.includes('hours')) {
-      const toolRes = await executeAlexaTool('get_student_progress');
-      return res.json({
-        recognizedIntent: 'get_student_progress',
-        speech: toolRes.speechText,
-        action: 'SHOW_ANALYTICS',
-        data: toolRes.data,
-      });
-    }
-
-    // 3. Quiz request
-    if (lower.includes('quiz') || lower.includes('test me')) {
-      // Extract topic
-      let topic = 'A* Search Algorithm';
-      if (lower.includes('machine learning')) topic = 'Machine Learning';
-      else if (lower.includes('binary search')) topic = 'Binary Search';
-      else if (lower.includes('bfs') || lower.includes('breadth first')) topic = 'Breadth-First Search (BFS)';
-      else if (lower.includes('dfs') || lower.includes('depth first')) topic = 'Depth-First Search (DFS)';
-
-      const toolRes = await executeAlexaTool('generate_quiz', { topic_name: topic, num_questions: 3 });
-      return res.json({
-        recognizedIntent: 'generate_quiz',
-        speech: toolRes.speechText,
-        action: 'START_QUIZ',
-        data: toolRes.data,
-      });
-    }
-
-    // 4. Study plan request
-    if (lower.includes('study plan') || lower.includes('plan for tomorrow') || lower.includes('schedule')) {
-      let subject = 'Algorithms & Data Structures';
-      if (lower.includes('networks') || lower.includes('computer network')) subject = 'Computer Networks';
-      else if (lower.includes('machine learning')) subject = 'Machine Learning';
-
-      const toolRes = await executeAlexaTool('create_study_plan', { subject_name: subject, hours_per_day: 2 });
-      return res.json({
-        recognizedIntent: 'create_study_plan',
-        speech: toolRes.speechText,
-        action: 'VIEW_PLAN',
-        data: toolRes.data,
-      });
-    }
-
-    // 5. Concept explanation request
-    if (lower.includes('explain') || lower.includes('teach me') || lower.includes('what is')) {
-      let topic = command.replace(/explain|teach me|what is|studypilot|alexa/gi, '').trim();
-      if (!topic) topic = 'A* algorithm';
-      const toolRes = await executeAlexaTool('explain_topic', { topic_name: topic });
-      return res.json({
-        recognizedIntent: 'explain_topic',
-        speech: toolRes.speechText,
-        action: 'SHOW_EXPLANATION',
-        data: toolRes.data,
-      });
-    }
-
-    // Default conversational reply
-    const speech = `I heard: "${command}". You can ask me to create a study plan, explain any concept like binary search, start a quiz, or check your weakest topics.`;
-    return res.json({
-      recognizedIntent: 'general_query',
-      speech,
-      action: 'GENERAL_REPLY',
-      data: null,
-    });
+    return res.json(await routeStudyAssistantRequest(command, { subjectName, mode, difficulty, pendingTool }));
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Voice command error' });
   }
@@ -436,18 +372,21 @@ app.post('/api/ai/voice-command', async (req: Request, res: Response) => {
 // -------------------------------------------------------------
 app.get('/api/alexa-plus/manifest', (_req: Request, res: Response) => {
   res.json({
-    track: 'Alexa+ Track - Amazon Developer Hackathon 2026',
+    track: 'Alexa+-inspired simulation for Amazon Developer Hackathon 2026',
     application: 'StudyPilot AI',
-    mcpVersion: '1.0',
-    description: 'Autonomous educational companion tools for student planning, adaptive tutoring, diagnostic quizzing, and performance telemetry.',
+    mcpVersion: 'Not implemented',
+    description: 'An in-app simulated conversational assistant with tools backed by StudyPilot persistent data. No Alexa+ runtime or device integration is configured.',
     tools: ALEXA_PLUS_TOOLS_MANIFEST,
   });
 });
 
 app.post('/api/alexa-plus/invoke', async (req: Request, res: Response) => {
   const { tool, arguments: args } = req.body;
-  if (!tool) {
-    return res.status(400).json({ error: 'Field "tool" is required' });
+  if (typeof tool !== 'string' || !tool.trim()) {
+    return res.status(400).json({ error: 'Field "tool" must be a non-empty string' });
+  }
+  if (args !== undefined && (!args || typeof args !== 'object' || Array.isArray(args))) {
+    return res.status(400).json({ error: 'Field "arguments" must be a JSON object' });
   }
   const result = await executeAlexaTool(tool, args || {});
   res.json(result);

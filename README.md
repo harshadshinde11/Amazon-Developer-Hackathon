@@ -23,16 +23,16 @@
    - Markdown rendering with code blocks, inline math notation, copy-to-clipboard buttons, and regeneration controls.
    - Topic and difficulty selectors (Beginner, Intermediate, Advanced).
 
-3. **Alexa-Inspired Voice Study Assistant**
+3. **Simulated Alexa+-Inspired Study Assistant**
    - Ambient AI voice orb with animated states (*Idle*, *Listening*, *Processing*, *Speaking*).
    - Frequency waveform visualization and Web Speech Recognition.
    - Natural spoken feedback via Web Speech Synthesis (with volume and interrupt controls).
-   - Real voice command routing that executes backend functions directly:
-     - *"StudyPilot, create a two-hour study plan for tomorrow"*
-     - *"Explain binary search"*
-     - *"Start a machine learning quiz"*
-     - *"What are my weakest topics?"*
-     - *"How much did I study this week?"*
+    - Text and voice requests use the same intent router and backend tools. Example requests:
+       - *"Create a two-hour plan for Algorithms & Data Structures"*
+       - *"Explain Breadth-First Search"*
+       - *"Quiz me on A* Search Algorithm"*
+       - *"What should I study today?"*
+       - *"How much did I study this week?"*
 
 4. **AI Study Planner**
    - Solves scheduling constraints by prioritizing upcoming exams and weaker topics.
@@ -63,15 +63,24 @@
 
 ## 🏆 Amazon Developer Hackathon 2026 (Alexa+ Track)
 
-StudyPilot AI features a dedicated **Alexa+ Tools Inspector** implementing 5 provider-agnostic, callable tools conforming to Model Context Protocol (MCP) and Alexa+ tool specifications:
+StudyPilot AI includes an **Alexa+-inspired in-app simulation** for the Amazon Developer Hackathon 2026. It is not connected to Alexa+ devices or an official Alexa+ runtime, and it does not currently expose an MCP server. The browser uses a local conversational intent router and calls the existing Express API:
 
 | Tool Name | Parameters | Purpose |
 | :--- | :--- | :--- |
-| `create_study_plan` | `subject_name`, `hours_per_day`, `exam_date` | Generates and persists a structured study schedule |
-| `explain_topic` | `topic_name`, `difficulty`, `mode` | Returns concise educational explanation & speech |
-| `generate_quiz` | `topic_name`, `difficulty`, `num_questions` | Prepares diagnostic test questions with answers |
-| `get_student_progress` | `subject_name` *(optional)* | Telemetry on streak, weekly hours, and topic mastery |
-| `recommend_revision` | *(none)* | Runs adaptive engine to surface weakest topics |
+| `create_study_plan` | `subject_name`, optional saved `topics`, `exam_date`, `hours_per_day` | Validates saved subjects/topics and schedule values, then saves a plan using the existing JSON database |
+| `explain_topic` | `topic_name`, `difficulty`, `mode` | Uses the existing tutor service for a level-appropriate explanation |
+| `generate_quiz` | Saved `topic_name`, `difficulty`, `num_questions` | Uses the existing quiz generator; questions are handed to Quiz Center and attempts persist on submission |
+| `get_student_progress` | optional saved `subject_name` | Returns saved quiz attempts, study sessions, and computed topic performance |
+| `recommend_revision` | none | Uses persisted quiz scores, topic mastery, study sessions, and examination dates |
+
+### Tool Architecture
+
+- `src/components/ChatView.tsx` and `src/components/VoiceAssistantView.tsx` send requests to the shared backend router.
+- `server.ts` exposes `/api/ai/assistant`, `/api/ai/voice-command`, and `/api/alexa-plus/invoke`.
+- `server/alexaPlusTools.ts` identifies intents, requests missing details, validates arguments, invokes tools, and returns the backend result plus concise speech text.
+- Tools read and write through `server/db.ts` to `data/studypilot_db.json`. The default demo dataset is initialized when the file is absent; it is not a source of new quiz scores.
+- Generated questions are passed to the existing Quiz Center. Only submitted answers create a persisted quiz attempt, which then feeds revision recommendations.
+- Browser speech recognition and speech synthesis are optional browser capabilities. Typed input remains available.
 
 ### Testing via cURL:
 ```bash
@@ -85,7 +94,16 @@ curl -X POST http://localhost:3000/api/alexa-plus/invoke \
 
 ---
 
-## 🛠️ Tech Stack
+## Setup and Limitations
+
+1. Install dependencies with `npm install`.
+2. Copy `.env.example` to `.env` and configure `GEMINI_API_KEY` if AI-generated explanations, plans, and questions are desired. Without a usable Gemini API key, the existing service fallback is used.
+3. Start the app with `npm run dev` and open `http://localhost:3000`.
+4. Run checks with `npm run lint` and `npm test`.
+
+The simulation does not connect to Amazon Alexa+, Echo devices, an Alexa+ runtime, or an MCP server. Browser speech recognition varies by browser and may require microphone permission; speech synthesis may use the device's installed voices. Tool intent recognition is a local pattern-based router rather than an Alexa+ model/runtime. Study data is stored in the existing local JSON file and is intended for this demo, not concurrent or production multi-user workloads.
+
+## Tech Stack
 
 - **Frontend:** React 19, TypeScript, Tailwind CSS v4, Lucide Icons, Canvas Confetti
 - **Backend:** Node.js, Express, tsx
@@ -114,7 +132,3 @@ curl -X POST http://localhost:3000/api/alexa-plus/invoke \
    ```
    Open `http://localhost:3000` in your browser.
 
-4. **Run Unit Tests:**
-   ```bash
-   npx tsx --test src/utils/adaptiveEngine.test.ts
-   ```

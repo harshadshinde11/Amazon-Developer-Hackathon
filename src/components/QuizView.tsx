@@ -22,6 +22,8 @@ interface QuizViewProps {
   attempts: QuizAttempt[];
   initialTopicId?: string;
   initialTopicName?: string;
+  initialQuizQuestions?: QuizQuestion[];
+  onConsumeInitialQuiz: () => void;
   onRefreshData: () => void;
   onNavigateToChat: () => void;
 }
@@ -32,6 +34,8 @@ export const QuizView: React.FC<QuizViewProps> = ({
   attempts,
   initialTopicId,
   initialTopicName,
+  initialQuizQuestions,
+  onConsumeInitialQuiz,
   onRefreshData,
   onNavigateToChat,
 }) => {
@@ -66,6 +70,17 @@ export const QuizView: React.FC<QuizViewProps> = ({
       if (top) setSelectedSubjectId(top.subjectId);
     }
   }, [initialTopicId, topics]);
+
+  useEffect(() => {
+    if (initialQuizQuestions?.length) {
+      setActiveQuestions(initialQuizQuestions);
+      setCurrentIndex(0);
+      setSelectedAnswers({});
+      setTimerSeconds(0);
+      setIsQuizActive(true);
+      onConsumeInitialQuiz();
+    }
+  }, [initialQuizQuestions, onConsumeInitialQuiz]);
 
   // Quiz timer
   useEffect(() => {
