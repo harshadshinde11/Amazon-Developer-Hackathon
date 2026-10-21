@@ -1,0 +1,6 @@
+{
+  "name": "StudyPilot AI",
+  "description": "Your Personal AI Study Partner - Study smarter. Learn faster. Achieve more. Combines conversational tutoring with Alexa-inspired voice assistance, adaptive study planning, and quiz mastery for the Amazon Developer Hackathon 2026.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

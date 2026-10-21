@@ -1,0 +1,589 @@
+{
+  "user": {
+    "id": "user_alexa_01",
+    "displayName": "Harshad",
+    "email": "harshad@example.com",
+    "createdAt": "2026-10-01T08:00:00.000Z",
+    "streakDays": 5,
+    "lastStudyDate": "2026-10-20",
+    "totalStudyHours": 25,
+    "studyHoursThisWeek": 9.5,
+    "targetExamDate": "2026-11-05",
+    "preferredHoursPerDay": 2,
+    "difficultyPreference": "intermediate",
+    "soundEnabled": true,
+    "voiceGender": "female"
+  },
+  "subjects": [
+    {
+      "id": "sub-cs201",
+      "userId": "user_alexa_01",
+      "name": "Algorithms & Data Structures",
+      "code": "CS201",
+      "color": "#8b5cf6",
+      "icon": "Cpu",
+      "examinationDate": "2026-10-29",
+      "createdAt": "2026-10-01T09:00:00.000Z"
+    },
+    {
+      "id": "sub-cs305",
+      "userId": "user_alexa_01",
+      "name": "Computer Networks",
+      "code": "CS305",
+      "color": "#3b82f6",
+      "icon": "Network",
+      "examinationDate": "2026-11-12",
+      "createdAt": "2026-10-05T10:00:00.000Z"
+    },
+    {
+      "id": "sub-cs401",
+      "userId": "user_alexa_01",
+      "name": "Machine Learning",
+      "code": "CS401",
+      "color": "#10b981",
+      "icon": "Sparkles",
+      "examinationDate": "2026-11-20",
+      "createdAt": "2026-10-08T11:00:00.000Z"
+    }
+  ],
+  "topics": [
+    {
+      "id": "top-bfs",
+      "subjectId": "sub-cs201",
+      "name": "Breadth-First Search (BFS)",
+      "difficulty": "intermediate",
+      "confidenceLevel": 4,
+      "completionStatus": "completed",
+      "notes": "Queue-based FIFO traversal. Finds shortest path in unweighted graphs. O(V + E) time.",
+      "createdAt": "2026-10-10T09:00:00.000Z"
+    },
+    {
+      "id": "top-dfs",
+      "subjectId": "sub-cs201",
+      "name": "Depth-First Search (DFS)",
+      "difficulty": "intermediate",
+      "confidenceLevel": 4,
+      "completionStatus": "completed",
+      "notes": "Stack/recursion-based traversal. Useful for cycle detection, topological sorting.",
+      "createdAt": "2026-10-10T09:30:00.000Z"
+    },
+    {
+      "id": "top-astar",
+      "subjectId": "sub-cs201",
+      "name": "A* Search Algorithm",
+      "difficulty": "advanced",
+      "confidenceLevel": 2,
+      "completionStatus": "in_progress",
+      "notes": "Heuristic evaluation f(n) = g(n) + h(n). Requires admissible and consistent heuristics.",
+      "createdAt": "2026-10-12T10:00:00.000Z"
+    },
+    {
+      "id": "top-tcp",
+      "subjectId": "sub-cs305",
+      "name": "TCP 3-Way Handshake & Flow Control",
+      "difficulty": "intermediate",
+      "confidenceLevel": 3,
+      "completionStatus": "in_progress",
+      "notes": "SYN, SYN-ACK, ACK. Sliding window protocol for flow control.",
+      "createdAt": "2026-10-14T11:00:00.000Z"
+    },
+    {
+      "id": "top-ml-eval",
+      "subjectId": "sub-cs401",
+      "name": "Precision, Recall & ROC-AUC",
+      "difficulty": "beginner",
+      "confidenceLevel": 4,
+      "completionStatus": "completed",
+      "notes": "Precision = TP / (TP + FP). Recall = TP / (TP + FN). Sensitivity vs specificity.",
+      "createdAt": "2026-10-15T14:00:00.000Z"
+    }
+  ],
+  "studyPlans": [
+    {
+      "userId": "user_alexa_01",
+      "title": "Algorithms & Data Structures Search Mastery Plan",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "examDate": "2026-10-29",
+      "totalHours": 16,
+      "priorityRationale": "A* Search Algorithm is prioritized with earlier and more comprehensive session allocations due to its advanced difficulty and lower self-assessed confidence level (2/5). BFS and DFS are scheduled for targeted reinforcement and baseline validation (confidence 4/5) before integrating all three algorithms into comparative problem solving and final mock practice.",
+      "sessions": [
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-21",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "completed",
+          "learningObjective": "Master the mathematical foundations of A*, including f(n) = g(n) + h(n), and the criteria for heuristic admissibility and consistency.",
+          "recommendedActivity": "Diagram path costs on a small grid and draft mathematical proofs for heuristic admissibility.",
+          "revisionTask": "Explain in writing why an admissible heuristic guarantees an optimal path in tree search.",
+          "id": "sess_tool_1792558706655_0",
+          "studyPlanId": "",
+          "completedAt": "2026-10-21T04:59:15.751Z"
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-21",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Implement A* algorithm using a min-priority queue and custom node comparators.",
+          "recommendedActivity": "Code A* from scratch in an IDE to find the shortest path on a 2D weighted obstacle grid.",
+          "revisionTask": "Verify how open and closed sets are managed to prevent redundant vertex re-expansions.",
+          "id": "sess_tool_1792558706655_1",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-22",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Compare standard heuristic functions (Manhattan, Euclidean, Chebyshev) and their performance trade-offs.",
+          "recommendedActivity": "Benchmark step counts and explored nodes across different heuristics on maze test cases.",
+          "revisionTask": "Flashcard drill: Match movement constraints (4-way vs 8-way vs continuous) to the correct heuristic.",
+          "id": "sess_tool_1792558706655_2",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-22",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Handle edge cases in A*, such as unreachable targets, negative weights, and tie-breaking strategies.",
+          "recommendedActivity": "Write unit tests targeting edge cases: fully blocked paths, identical f-values, and large open grids.",
+          "revisionTask": "Review Dijkstra vs A* relationship and identify how A* degrades when h(n) = 0.",
+          "id": "sess_tool_1792558706655_3",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Breadth-First Search (BFS)",
+          "scheduledDate": "2026-10-23",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Consolidate BFS fundamentals for unweighted shortest path calculation and level-order traversal.",
+          "recommendedActivity": "Implement BFS iteratively using a double-ended queue on adjacency list representations.",
+          "revisionTask": "List the time and space complexity of BFS and state the FIFO queue invariant.",
+          "id": "sess_tool_1792558706655_4",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Breadth-First Search (BFS)",
+          "scheduledDate": "2026-10-23",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Apply BFS to multi-source shortest path problems and bipartite graph verification.",
+          "recommendedActivity": "Solve two competitive programming problems on bipartite checking and rotten oranges/multi-source spread.",
+          "revisionTask": "Trace multi-source queue initialization on a 4x4 matrix diagram.",
+          "id": "sess_tool_1792558706655_5",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Depth-First Search (DFS)",
+          "scheduledDate": "2026-10-24",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Solidify recursive and explicit stack implementations of DFS and analyze recursion limits.",
+          "recommendedActivity": "Write both recursive and iterative DFS implementations; draw recursion trees for small graphs.",
+          "revisionTask": "Contrast call-stack space overhead against BFS frontier memory footprint.",
+          "id": "sess_tool_1792558706655_6",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Depth-First Search (DFS)",
+          "scheduledDate": "2026-10-24",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Utilize DFS for cycle detection in directed graphs, topological sorting, and strongly connected components.",
+          "recommendedActivity": "Code cycle detection using 3-color node labeling (white/gray/black) and execute topological sort.",
+          "revisionTask": "Review the definition and detection of back-edges, cross-edges, and forward-edges.",
+          "id": "sess_tool_1792558706655_7",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-25",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Master path reconstruction techniques and bidirectional search concepts related to heuristic searches.",
+          "recommendedActivity": "Implement pointer-based parent tracking and simulate a bidirectional search on a grid.",
+          "revisionTask": "Verify that path reconstruction does not exceed O(path length) time and space.",
+          "id": "sess_tool_1792558706655_8",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-25",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Debug complex A* scenarios including underestimating vs overestimating heuristic consequences.",
+          "recommendedActivity": "Run deliberate non-admissible heuristic experiments to observe sub-optimal shortest paths.",
+          "revisionTask": "Summarize the exact trade-off between search speed and optimality when overestimating heuristics.",
+          "id": "sess_tool_1792558706655_9",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Breadth-First Search (BFS)",
+          "scheduledDate": "2026-10-26",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Compare BFS vs DFS in tree/graph traversal trade-offs and implicit state-space searches.",
+          "recommendedActivity": "Solve word-ladder or sliding puzzle problems using BFS, measuring states expanded.",
+          "revisionTask": "Create a comparison table highlighting queue vs stack and completeness guarantees.",
+          "id": "sess_tool_1792558706655_10",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Depth-First Search (DFS)",
+          "scheduledDate": "2026-10-26",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Execute backtracking and connected components discovery on large 2D matrix maps.",
+          "recommendedActivity": "Complete an island count and word search matrix problem under timed exam conditions.",
+          "revisionTask": "Quickly write out the in-place visited marking pattern to avoid extra space.",
+          "id": "sess_tool_1792558706655_11",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-27",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Solve exam-style theoretical and analytical questions on heuristic evaluation and state spaces.",
+          "recommendedActivity": "Answer past paper questions on search algorithms, writing full analytical responses by hand.",
+          "revisionTask": "Self-grade answers against standard rubric criteria for correctness and rigorous terminology.",
+          "id": "sess_tool_1792558706655_12",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Breadth-First Search (BFS)",
+          "scheduledDate": "2026-10-27",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Apply 0-1 BFS using double-ended queues for non-uniform binary-weighted graphs.",
+          "recommendedActivity": "Code a 0-1 BFS problem (e.g., minimum obstacle removal path) and analyze its O(V + E) complexity.",
+          "revisionTask": "Contrast 0-1 BFS against Dijkstra's algorithm regarding overhead and efficiency.",
+          "id": "sess_tool_1792558706655_13",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-28",
+          "startTime": "18:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Perform rapid walkthroughs of complex A* and Dijkstra comparison scenarios under mock examination timing.",
+          "recommendedActivity": "Step through a 6-node weighted graph trace table for A* with given heuristic values.",
+          "revisionTask": "Verify closed list contents and final cost values against known ground truth.",
+          "id": "sess_tool_1792558706655_14",
+          "studyPlanId": ""
+        },
+        {
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Depth-First Search (DFS)",
+          "scheduledDate": "2026-10-28",
+          "startTime": "19:15",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Final synthesis: review invariants, algorithm selection criteria, and edge-case handling across BFS, DFS, and A*.",
+          "recommendedActivity": "Construct a one-page summary cheat sheet reviewing data structures, termination conditions, and big-O complexities.",
+          "revisionTask": "Final mental rehearsal of algorithm implementation templates prior to exam day.",
+          "id": "sess_tool_1792558706655_15",
+          "studyPlanId": ""
+        }
+      ],
+      "id": "plan_1792558706655_czxv0",
+      "createdAt": "2026-10-21T04:58:26.655Z"
+    },
+    {
+      "id": "plan-algo-rev",
+      "userId": "user_alexa_01",
+      "title": "Sprint: Algorithms Exam Prep",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "examDate": "2026-10-29",
+      "totalHours": 4.5,
+      "createdAt": "2026-10-18T10:00:00.000Z",
+      "priorityRationale": "High priority because the exam is in 9 days and A* Search scored 40% on recent diagnostics.",
+      "sessions": [
+        {
+          "id": "sess-01",
+          "studyPlanId": "plan-algo-rev",
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Breadth-First Search (BFS)",
+          "scheduledDate": "2026-10-19",
+          "startTime": "09:00",
+          "durationMinutes": 45,
+          "status": "completed",
+          "learningObjective": "Review queue state transitions and shortest-path tree properties.",
+          "recommendedActivity": "Solve 2 LeetCode Medium BFS matrix problems.",
+          "revisionTask": "Compare memory usage between recursive DFS and queue BFS.",
+          "completedAt": "2026-10-19T09:50:00.000Z"
+        },
+        {
+          "id": "sess-02",
+          "studyPlanId": "plan-algo-rev",
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "A* Search Algorithm",
+          "scheduledDate": "2026-10-21",
+          "startTime": "10:00",
+          "durationMinutes": 60,
+          "status": "pending",
+          "learningObjective": "Master admissible heuristics f(n) = g(n) + h(n) and priority queue implementation.",
+          "recommendedActivity": "Work through step-by-step 8-puzzle heuristic calculations.",
+          "revisionTask": "Retake targeted 5-question A* quiz to push score from 40% to >80%."
+        },
+        {
+          "id": "sess-03",
+          "studyPlanId": "plan-algo-rev",
+          "subjectName": "Algorithms & Data Structures",
+          "topicName": "Depth-First Search (DFS)",
+          "scheduledDate": "2026-10-22",
+          "startTime": "15:30",
+          "durationMinutes": 45,
+          "status": "pending",
+          "learningObjective": "Review cycle detection in directed graphs using 3-color marking.",
+          "recommendedActivity": "Implement topological sort with Kahn algorithm and DFS.",
+          "revisionTask": "Solve 1 graph coloring problem."
+        }
+      ]
+    }
+  ],
+  "quizAttempts": [
+    {
+      "userId": "user_alexa_01",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "topicId": "top-astar",
+      "topicName": "A* Search Algorithm",
+      "difficulty": "intermediate",
+      "score": 5,
+      "totalQuestions": 5,
+      "percentage": 100,
+      "timeSpentSeconds": 85,
+      "answers": [
+        {
+          "questionId": "astar-q1",
+          "question": "In the context of the A* algorithm, what is the theoretical requirement for the heuristic function h(n) to guarantee that A* finds the optimal path when performing a graph search without reopening already closed nodes?",
+          "options": [
+            "The heuristic must be consistent (monotonic).",
+            "The heuristic must merely be admissible.",
+            "The heuristic must be strictly non-zero for all non-goal nodes.",
+            "The heuristic must be an exact estimate of the remaining cost to the goal."
+          ],
+          "selectedAnswer": 0,
+          "correctAnswer": 0,
+          "isCorrect": true,
+          "explanation": "For graph search without reopening nodes, admissibility alone is insufficient to guarantee optimality. If an admissible but inconsistent heuristic is used, a node could be reached via a suboptimal path first, added to the closed set, and subsequently rejected when a shorter path to it is discovered. A consistent (monotonic) heuristic guarantees that the sequence of f(n) values along any path is non-decreasing, ensuring that the first time any node is expanded, the path to it is already optimal.",
+          "commonMistakes": "Many students conflate tree search with graph search. Admissibility guarantees optimality for tree search (where paths do not merge), but graph search without node reopening requires consistency (monotonicity)."
+        },
+        {
+          "questionId": "astar-q2",
+          "question": "If the heuristic function h(n) is identically set to 0 for every state in a state space with strictly positive edge costs, what algorithm does A* degenerate into?",
+          "options": [
+            "Greedy Best-First Search",
+            "Uniform-Cost Search (Dijkstra's Algorithm)",
+            "Depth-First Search",
+            "Iterative Deepening Search"
+          ],
+          "selectedAnswer": 1,
+          "correctAnswer": 1,
+          "isCorrect": true,
+          "explanation": "The evaluation function of A* is f(n) = g(n) + h(n), where g(n) is the cost from the start node to n and h(n) is the estimated cost from n to the goal. When h(n) = 0 for all n, f(n) reduces to g(n). Expanding nodes in order of minimum g(n) is precisely Uniform-Cost Search, which is Dijkstra's algorithm applied to implicit search graphs.",
+          "commonMistakes": "A common mistake is selecting Greedy Best-First Search, which occurs when g(n) = 0 and node selection depends solely on h(n)."
+        },
+        {
+          "questionId": "astar-q3",
+          "question": "A heuristic function h(n) is consistent if for every node n and successor n' generated by an action with cost c(n, a, n'), it satisfies h(n) <= c(n, a, n') + h(n'). Which of the following is a direct mathematical consequence of this property?",
+          "options": [
+            "The evaluation function f(n) along any path is monotonically non-decreasing.",
+            "The algorithm is guaranteed to terminate in O(b * d) space complexity.",
+            "Every admissible heuristic is automatically consistent.",
+            "The heuristic value h(n) cannot equal 0 at the goal state."
+          ],
+          "selectedAnswer": 0,
+          "correctAnswer": 0,
+          "isCorrect": true,
+          "explanation": "If h is consistent, then for any successor n' of n, g(n') = g(n) + c(n, a, n'). Adding g(n') to both sides of the consistency condition yields g(n') + h(n') >= g(n) + c(n, a, n') - c(n, a, n') + h(n) = g(n) + h(n), meaning f(n') >= f(n). Thus, f-values along any optimal or explored path are monotonically non-decreasing.",
+          "commonMistakes": "Students often believe that consistency and admissibility are equivalent. While every consistent heuristic is admissible, not every admissible heuristic is consistent."
+        },
+        {
+          "questionId": "astar-q4",
+          "question": "Suppose h1(n) and h2(n) are two admissible and consistent heuristics such that for all non-goal nodes n, h2(n) >= h1(n). Which statement is true regarding A* search using these heuristics?",
+          "options": [
+            "h1 dominates h2, so A* using h1 expands fewer or equal nodes than A* using h2.",
+            "h2 dominates h1, so A* using h2 will never expand more nodes than A* using h1 (except possibly for ties).",
+            "h2 will find a shorter overall path length to the goal than h1.",
+            "h2 violates admissibility because it returns strictly larger estimates than h1."
+          ],
+          "selectedAnswer": 1,
+          "correctAnswer": 1,
+          "isCorrect": true,
+          "explanation": "When h2(n) >= h1(n) for all n, h2 is said to dominate h1. A higher heuristic value that remains admissible is more informed and closer to the true cost h*(n). Consequently, A* with h2 will prune more sub-optimal branches and expand a subset of the nodes expanded by A* using h1 (subject to tie-breaking behavior).",
+          "commonMistakes": "A common misconception is thinking a larger heuristic might find a 'shorter path'; however, both heuristics guarantee optimal path length (cost) due to admissibility. The difference is solely the efficiency (number of nodes expanded)."
+        },
+        {
+          "questionId": "astar-q5",
+          "question": "What is typically the primary computational bottleneck of standard A* search in practical applications with large search spaces?",
+          "options": [
+            "Time complexity due to repeatedly recomputing the heuristic function.",
+            "Memory complexity due to storing all generated nodes in the Open and Closed sets.",
+            "Incompleteness caused by getting trapped in infinite loops on graphs with cycles.",
+            "Loss of optimality when edge costs vary significantly."
+          ],
+          "selectedAnswer": 1,
+          "correctAnswer": 1,
+          "isCorrect": true,
+          "explanation": "Standard A* keeps all generated nodes in memory: the Open set (priority queue) and Closed set (visited hash set). In large search graphs, the number of nodes stored grows exponentially with search depth (O(b^d)), causing systems to run out of RAM long before the CPU reaches a practical time limit. This limitation motivated memory-bounded variants like IDA* and SMA*.",
+          "commonMistakes": "Candidates often assume CPU time is the main limitation because searching takes long; however, in practice, standard A* almost always exhausts available memory before running out of reasonable CPU computation time."
+        }
+      ],
+      "id": "att_1792557646129_dvkrj",
+      "attemptedAt": "2026-10-21T04:40:46.129Z"
+    },
+    {
+      "id": "attempt-bfs-01",
+      "userId": "user_alexa_01",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "topicId": "top-bfs",
+      "topicName": "Breadth-First Search (BFS)",
+      "difficulty": "intermediate",
+      "score": 9,
+      "totalQuestions": 10,
+      "percentage": 90,
+      "attemptedAt": "2026-10-18T14:30:00.000Z",
+      "timeSpentSeconds": 240,
+      "answers": [
+        {
+          "questionId": "q-bfs-1",
+          "question": "What data structure is standardly used to implement BFS?",
+          "options": [
+            "Stack",
+            "Queue",
+            "Priority Queue",
+            "Binary Search Tree"
+          ],
+          "selectedAnswer": 1,
+          "correctAnswer": 1,
+          "isCorrect": true,
+          "explanation": "BFS explores neighbor vertices level by level, requiring FIFO ordering provided by a queue."
+        }
+      ]
+    },
+    {
+      "id": "attempt-dfs-01",
+      "userId": "user_alexa_01",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "topicId": "top-dfs",
+      "topicName": "Depth-First Search (DFS)",
+      "difficulty": "intermediate",
+      "score": 8.5,
+      "totalQuestions": 10,
+      "percentage": 85,
+      "attemptedAt": "2026-10-18T16:00:00.000Z",
+      "timeSpentSeconds": 210,
+      "answers": []
+    },
+    {
+      "id": "attempt-astar-01",
+      "userId": "user_alexa_01",
+      "subjectId": "sub-cs201",
+      "subjectName": "Algorithms & Data Structures",
+      "topicId": "top-astar",
+      "topicName": "A* Search Algorithm",
+      "difficulty": "advanced",
+      "score": 4,
+      "totalQuestions": 10,
+      "percentage": 40,
+      "attemptedAt": "2026-10-19T11:20:00.000Z",
+      "timeSpentSeconds": 310,
+      "answers": [
+        {
+          "questionId": "q-astar-1",
+          "question": "In A* search, what condition guarantees that the algorithm finds the optimal path when using tree search?",
+          "options": [
+            "Heuristic must be non-negative only",
+            "Heuristic h(n) must be admissible (never overestimate true cost)",
+            "Heuristic must strictly equal true remaining cost",
+            "Heuristic must overestimate by at most 10%"
+          ],
+          "selectedAnswer": 0,
+          "correctAnswer": 1,
+          "isCorrect": false,
+          "explanation": "An admissible heuristic never overestimates the true cost to reach the goal. Admissibility guarantees optimality for tree search.",
+          "commonMistakes": "Students often confuse non-negative heuristics with admissible heuristics."
+        }
+      ]
+    }
+  ],
+  "conversations": [
+    {
+      "id": "conv-01",
+      "userId": "user_alexa_01",
+      "title": "Explain binary search in simple Engl...",
+      "subjectName": "Algorithms & Data Structures",
+      "createdAt": "2026-10-21T04:38:26.932Z",
+      "updatedAt": "2026-10-21T04:38:26.932Z",
+      "messages": [
+        {
+          "id": "msg-1",
+          "role": "user",
+          "content": "Explain why my quiz answer on A* admissibility was incorrect.",
+          "timestamp": "2026-10-19T11:30:00.000Z",
+          "mode": "simple"
+        },
+        {
+          "id": "msg-2",
+          "role": "assistant",
+          "content": "### Why Your Answer Was Incorrect\n\nYou selected that the heuristic only needs to be non-negative. While heuristics are typically non-negative ($h(n) \\ge 0$), this alone does **not** guarantee an optimal path.\n\n#### The Rule: Admissibility\n- A heuristic $h(n)$ is **admissible** if it **never overestimates** the actual cost from node $n$ to the goal:\n  $$h(n) \\le h^*(n)$$\n- If $h(n)$ overestimates the cost, A* might incorrectly abandon the true shortest path because it mistakenly thinks that route is more expensive than it really is!\n\n#### Key Formula\n$$f(n) = g(n) + h(n)$$\n- $g(n)$: Exact cost incurred so far from start to $n$.\n- $h(n)$: Estimated cost from $n$ to goal.\n\n*Study Tip:* Remember the analogy of GPS navigation—an admissible heuristic always estimates the straight-line bird's-eye distance, which can never exceed the actual road distance.",
+          "timestamp": "2026-10-19T11:30:05.000Z",
+          "mode": "simple"
+        },
+        {
+          "id": "msg_1792557460471_u",
+          "role": "user",
+          "content": "Explain binary search in simple English.",
+          "timestamp": "2026-10-21T04:37:40.471Z",
+          "mode": "simple",
+          "subjectName": "Algorithms & Data Structures"
+        },
+        {
+          "id": "msg_1792557506931_a",
+          "role": "assistant",
+          "content": "### 1. Concept Overview\n\n**Binary Search** is a fast algorithm used to find the position of a specific item in a **sorted list**. \n\nInstead of checking items one by one from left to right (like reading a book line by line), Binary Search checks the **middle element** first. Because the list is ordered, it can instantly eliminate half of the remaining options in a single step.\n\n---\n\n### 2. Step-by-Step Breakdown\n\nTo find an item using Binary Search:\n1. **Find the middle** of the current list.\n2. **Compare** the middle item to your target:\n   - If it matches: **You're done!**\n   - If your target is **smaller**: Discard the right half and repeat on the left.\n   - If your target is **larger**: Discard the left half and repeat on the right.\n3. Repeat until you find the item or run out of elements.\n\n#### Walkthrough Example\nLet's find the number **`23`** in this sorted list:\n`[2, 5, 8, 12, 16, 23, 38, 56, 72, 91]`\n\n* **Pass 1:** Look at the middle element: **`16`**.\n  * Is $23 = 16$? No.\n  * Is $23 > 16$? Yes! Discard everything to the left of `16`.\n  * Remaining list: `[23, 38, 56, 72, 91]`\n\n* **Pass 2:** Look at the middle element of the remaining items: **`56`**.\n  * Is $23 = 56$? No.\n  * Is $23 < 56$? Yes! Discard everything to the right of `56`.\n  * Remaining list: `[23, 38]`\n\n* **Pass 3:** Look at the middle element: **`23`**.\n  * Match found! We located the number in just **3 steps** instead of 6.\n\n#### Python Code Implementation\n\n```python\ndef binary_search(arr: list[int], target: int) -> int:\n    left = 0\n    right = len(arr) - 1\n\n    while left <= right:\n        mid = (left + right) // 2\n\n        if arr[mid] == target:\n            return mid  # Target found at index 'mid'\n        elif arr[mid] < target:\n            left = mid + 1  # Target is in the right half\n        else:\n            right = mid - 1  # Target is in the left half\n\n    return -1  # Target not found\n```\n\n---\n\n### 3. Real-World Analogy\n\nImagine playing the **Number Guessing Game** where a friend picks a number between $1$ and $100$:\n\n* **Slow way (Linear Search):** Guess $1$, then $2$, then $3$... If the number is $99$, this takes 99 guesses.\n* **Smart way (Binary Search):** \n  * Guess **50**. Friend says: *\"Higher!\"* (Eliminated 1–50)\n  * Guess **75**. Friend says: *\"Higher!\"* (Eliminated 51–75)\n  * Guess **88**. Friend says: *\"Lower!\"* (Eliminated 88–100)\n  \nYou narrow down the exact number in at most **7 guesses**.\n\n---\n\n### 4. Key Takeaways & Self-Check\n\n* **The Golden Rule:** The array **must be sorted** before you can use binary search.\n* **Speed ($O(\\log n)$):** \n  * If a list has **1,000,000 items**, linear search could take up to 1,000,000 checks.\n  * Binary search will find it in at most **20 checks** ($2^{20} \\approx 1,000,000$).\n\n#### Quick Self-Check\n> If you double the size of an array from $1,024$ elements to $2,048$ elements, how many additional comparisons does Binary Search need in the worst-case scenario?\n> \n> *Answer:* **Just 1 more comparison!** One single check cuts the $2,048$ elements back down to $1,024$.",
+          "timestamp": "2026-10-21T04:38:26.931Z",
+          "mode": "simple",
+          "subjectName": "Algorithms & Data Structures"
+        }
+      ]
+    }
+  ]
+}
