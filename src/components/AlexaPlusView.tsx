@@ -99,7 +99,7 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
               <span>In-App Alexa+-Inspired Simulation</span>
             </div>
             <h2 className="text-xl font-extrabold text-white tracking-tight">
-              Amazon Developer Hackathon 2026 - Study Assistant Tools
+              Study Assistant Tools Demo
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
               A simulated conversational experience inside StudyPilot. The tools call this app's backend and JSON database; no official Alexa+ runtime, Alexa device, or MCP server is connected.
@@ -120,7 +120,7 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
         <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-5 space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
             <Layers size={16} className="text-purple-400" />
-            <span>Registered Alexa+ Tools (5)</span>
+            <span>Registered Tools ({manifest?.tools.length ?? 0})</span>
           </h3>
 
           <div className="space-y-2">
@@ -248,14 +248,14 @@ export const AlexaPlusView: React.FC<AlexaPlusViewProps> = ({ onRefreshData }) =
       <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 space-y-4">
         <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
           <BookOpen size={16} className="text-blue-400" />
-          <span>Alexa+ Track Architecture & Evaluation Notes</span>
+          <span>Architecture & Evaluation Notes</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300 leading-relaxed">
           <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 space-y-1.5">
             <span className="font-bold text-white block">1. Model Independence</span>
             <p className="text-slate-400">
-              The 5 core functions are decoupled from any single LLM. They execute against persistent schemas and can be invoked by Alexa+, Amazon Bedrock, or standard MCP agents.
+              Backend tools execute against this app's saved data. No external Alexa+, Amazon Bedrock, or MCP client is connected in this demo.
             </p>
           </div>
 

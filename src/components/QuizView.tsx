@@ -13,7 +13,7 @@ import {
   TrendingUp,
   AlertTriangle,
 } from 'lucide-react';
-import { Subject, Topic, QuizAttempt, QuizQuestion, QuizAnswerRecord } from '../types.js';
+import { Subject, Topic, QuizAttempt, QuizQuestion } from '../types.js';
 import { api } from '../api.js';
 
 interface QuizViewProps {
@@ -23,6 +23,7 @@ interface QuizViewProps {
   initialTopicId?: string;
   initialTopicName?: string;
   initialQuizQuestions?: QuizQuestion[];
+  initialQuizId?: string;
   onConsumeInitialQuiz: () => void;
   onRefreshData: () => void;
   onNavigateToChat: () => void;
@@ -35,6 +36,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   initialTopicId,
   initialTopicName,
   initialQuizQuestions,
+  initialQuizId,
   onConsumeInitialQuiz,
   onRefreshData,
   onNavigateToChat,
@@ -53,7 +55,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
   // Active quiz state
   const [isGenerating, setIsGenerating] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [activeQuestions, setActiveQuestions] = useState<QuizQuestion[] | null>(null);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -72,15 +76,16 @@ export const QuizView: React.FC<QuizViewProps> = ({
   }, [initialTopicId, topics]);
 
   useEffect(() => {
-    if (initialQuizQuestions?.length) {
+    if (initialQuizQuestions?.length && initialQuizId) {
       setActiveQuestions(initialQuizQuestions);
+      setActiveQuizId(initialQuizId);
       setCurrentIndex(0);
       setSelectedAnswers({});
       setTimerSeconds(0);
       setIsQuizActive(true);
       onConsumeInitialQuiz();
     }
-  }, [initialQuizQuestions, onConsumeInitialQuiz]);
+  }, [initialQuizQuestions, initialQuizId, onConsumeInitialQuiz]);
 
   // Quiz timer
   useEffect(() => {
@@ -113,6 +118,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
       if (response.questions && response.questions.length > 0) {
         setActiveQuestions(response.questions);
+        setActiveQuizId(response.quizId);
         setCurrentIndex(0);
         setSelectedAnswers({});
         setTimerSeconds(0);
@@ -133,57 +139,39 @@ export const QuizView: React.FC<QuizViewProps> = ({
   };
 
   const handleSubmitQuiz = async () => {
-    if (!activeQuestions || !selectedTopic) return;
+    if (!activeQuestions || !activeQuizId || !selectedTopic) return;
+    setSubmissionError(null);
     setIsQuizActive(false);
 
-    let correctCount = 0;
-    const answerRecords: QuizAnswerRecord[] = activeQuestions.map((q, idx) => {
-      const chosen = selectedAnswers[idx] ?? -1;
-      const isCorrect = chosen === q.correctAnswer;
-      if (isCorrect) correctCount++;
+    try {
+      const evaluation = await api.invokeAlexaTool('evaluate_quiz', {
+        quiz_id: activeQuizId,
+        selected_answers: activeQuestions.map((_, index) => selectedAnswers[index] ?? -1),
+        time_spent_seconds: timerSeconds,
+      });
+      if (!evaluation.success || !evaluation.data) {
+        throw new Error(evaluation.error || 'Quiz evaluation failed. Your result was not saved.');
+      }
 
-      return {
-        questionId: q.id,
-        question: q.question,
-        options: q.options,
-        selectedAnswer: chosen,
-        correctAnswer: q.correctAnswer,
-        isCorrect,
-        explanation: q.explanation,
-        commonMistakes: q.commonMistakes,
-      };
-    });
+      const attempt = evaluation.data as QuizAttempt;
+      setCompletedAttempt(attempt);
+      setActiveQuestions(null);
+      setActiveQuizId(null);
+      onRefreshData();
 
-    const percentage = Math.round((correctCount / activeQuestions.length) * 100);
-
-    // Save to persistent database
-    const attempt = await api.saveQuizAttempt({
-      userId: 'user_alexa_01',
-      subjectId: selectedTopic.subjectId,
-      subjectName: selectedSubject?.name || 'General',
-      topicId: selectedTopic.id,
-      topicName: selectedTopic.name,
-      difficulty,
-      score: correctCount,
-      totalQuestions: activeQuestions.length,
-      percentage,
-      timeSpentSeconds: timerSeconds,
-      answers: answerRecords,
-    });
-
-    setCompletedAttempt(attempt);
-    setActiveQuestions(null);
-    onRefreshData();
-
-    // Trigger celebration confetti if score >= 80%
-    if (percentage >= 80) {
-      try {
-        confetti({
-          particleCount: 100,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      } catch (e) {}
+      // Trigger celebration confetti if score >= 80%
+      if (attempt.percentage >= 80) {
+        try {
+          confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        } catch (e) {}
+      }
+    } catch (err: unknown) {
+      setSubmissionError(err instanceof Error ? err.message : 'Quiz evaluation failed. Your result was not saved.');
+      setIsQuizActive(true);
     }
   };
 
@@ -197,7 +185,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
             <span>Quiz Center & Topic Mastery Assessment</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Diagnostic quizzes powered by Gemini. Real scores feed directly into your Adaptive Learning recommendations.
+            Gemini-generated when configured; otherwise the active quiz is labeled as a local demo question bank. Saved attempts feed adaptive recommendations.
           </p>
         </div>
 
@@ -216,6 +204,11 @@ export const QuizView: React.FC<QuizViewProps> = ({
       {/* VIEW 1: Active Quiz Taking Mode */}
       {isQuizActive && activeQuestions && (
         <div className="max-w-3xl mx-auto rounded-2xl bg-slate-900/80 border border-slate-700 p-6 space-y-6 shadow-xl">
+          {submissionError && (
+            <p role="alert" className="rounded-lg border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
+              {submissionError} Your answers are still here; submit again when the connection is restored.
+            </p>
+          )}
           {/* Quiz Header Bar */}
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div>
@@ -225,6 +218,11 @@ export const QuizView: React.FC<QuizViewProps> = ({
               <span className="text-xs text-slate-400 ml-2 capitalize">
                 • {difficulty} • Question {currentIndex + 1} of {activeQuestions.length}
               </span>
+              <p className="mt-1 text-[11px] text-slate-400" role="status">
+                {activeQuestions[0]?.generationMode === 'demo'
+                  ? 'Demo question bank; Gemini did not generate this quiz.'
+                  : 'Generated by Gemini.'}
+              </p>
             </div>
 
             <div className="flex items-center gap-3">

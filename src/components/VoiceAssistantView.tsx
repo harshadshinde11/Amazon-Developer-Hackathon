@@ -19,7 +19,7 @@ import { QuizQuestion } from '../types.js';
 
 interface VoiceAssistantViewProps {
   onNavigate: (view: NavView) => void;
-  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => void;
+  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[], quizId?: string) => void;
   onRefreshData: () => void;
 }
 
@@ -448,7 +448,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
 
                   {msg.success && msg.toolName === 'generate_quiz' && (
                     <button
-                      onClick={() => onStartQuizWithTopic(msg.data?.topicId, msg.data?.topicName, msg.data?.questions as QuizQuestion[])}
+                      onClick={() => onStartQuizWithTopic(msg.data?.topicId, msg.data?.topicName, msg.data?.questions as QuizQuestion[], msg.data?.quizId)}
                       className="px-2 py-1 rounded bg-blue-600/40 hover:bg-blue-600 text-white text-[11px] font-semibold"
                     >
                       Take and submit quiz

@@ -417,8 +417,9 @@ export function updateSessionStatus(
   if (!plan) return null;
   const session = plan.sessions.find((s) => s.id === sessionId);
   if (!session) return null;
+  const wasCompleted = session.status === 'completed';
   session.status = status;
-  if (status === 'completed') {
+  if (status === 'completed' && !wasCompleted) {
     session.completedAt = new Date().toISOString();
     // Increment study time for user
     db.user.studyHoursThisWeek = Math.round((db.user.studyHoursThisWeek + session.durationMinutes / 60) * 10) / 10;

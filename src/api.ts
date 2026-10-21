@@ -187,6 +187,7 @@ export const api = {
   },
   async runAssistant(params: {
     message: string;
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
     subjectName?: string;
     mode?: string;
     difficulty?: string;
@@ -234,7 +235,7 @@ export const api = {
     difficulty?: string;
     numQuestions?: number;
     questionType?: string;
-  }): Promise<{ questions: QuizQuestion[] }> {
+  }): Promise<{ questions: QuizQuestion[]; quizId: string }> {
     const res = await fetch('/api/ai/quiz', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -287,7 +288,7 @@ export const api = {
   },
   async invokeAlexaTool(
     tool: string,
-    args: Record<string, any>
+    args: Record<string, unknown>
   ): Promise<{
     success: boolean;
     tool: string;
@@ -301,7 +302,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tool, arguments: args }),
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Agent tool request failed');
+    return body;
   },
 
   // Reset controls

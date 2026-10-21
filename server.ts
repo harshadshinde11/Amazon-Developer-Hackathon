@@ -33,6 +33,7 @@ import {
 import {
   ALEXA_PLUS_TOOLS_MANIFEST,
   executeAlexaTool,
+  registerQuizForEvaluation,
   routeStudyAssistantRequest,
 } from './server/alexaPlusTools.js';
 import {
@@ -289,11 +290,15 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 
 app.post('/api/ai/assistant', async (req: Request, res: Response) => {
   try {
-    const { message, subjectName, mode, difficulty, pendingTool } = req.body;
+    const { message, history, subjectName, mode, difficulty, pendingTool } = req.body;
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'A non-empty message is required' });
     }
-    const result = await routeStudyAssistantRequest(message, { subjectName, mode, difficulty, pendingTool });
+    if (history !== undefined && (!Array.isArray(history) || history.length > 20 || history.some((entry) =>
+      !entry || !['user', 'assistant'].includes(entry.role) || typeof entry.content !== 'string' || entry.content.length > 5000))) {
+      return res.status(400).json({ error: 'History must contain at most 20 valid messages of up to 5,000 characters each' });
+    }
+    const result = await routeStudyAssistantRequest(message, { subjectName, mode, difficulty, pendingTool, history });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Assistant request failed' });
@@ -322,17 +327,31 @@ app.post(['/api/ai/plan', '/api/ai/study-plan'], async (req: Request, res: Respo
 app.post('/api/ai/quiz', async (req: Request, res: Response) => {
   try {
     const { subjectName, topicName, difficulty, numQuestions, questionType } = req.body;
-    if (!topicName) {
+    if (typeof topicName !== 'string' || !topicName.trim()) {
       return res.status(400).json({ error: 'Topic name is required' });
     }
+    const subject = getSubjects().find((candidate) => candidate.name.toLowerCase() === String(subjectName || '').trim().toLowerCase());
+    const topic = getTopics(subject?.id).find((candidate) => candidate.name.toLowerCase() === topicName.trim().toLowerCase());
+    if (!topic) {
+      return res.status(400).json({ error: 'Choose a topic saved in your subjects.' });
+    }
+    const savedSubject = getSubjects().find((candidate) => candidate.id === topic.subjectId);
     const questions = await generateQuizWithAI({
-      subjectName: subjectName || 'General Studies',
-      topicName,
+      subjectName: savedSubject?.name || 'General Studies',
+      topicName: topic.name,
       difficulty,
       numQuestions,
       questionType,
     });
-    res.json({ questions });
+    const quizId = registerQuizForEvaluation({
+      topicId: topic.id,
+      subjectId: topic.subjectId,
+      subjectName: savedSubject?.name || 'General Studies',
+      topicName: topic.name,
+      difficulty: ['beginner', 'intermediate', 'advanced'].includes(difficulty) ? difficulty : 'intermediate',
+      questions,
+    });
+    res.json({ questions, quizId });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Quiz generation error' });
   }
@@ -389,7 +408,7 @@ app.post('/api/alexa-plus/invoke', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Field "arguments" must be a JSON object' });
   }
   const result = await executeAlexaTool(tool, args || {});
-  res.json(result);
+  res.status(result.success ? 200 : 422).json(result);
 });
 
 // -------------------------------------------------------------

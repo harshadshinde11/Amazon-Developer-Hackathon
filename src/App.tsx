@@ -43,7 +43,7 @@ export default function App() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
 
   // Selected topic for quiz transfer
-  const [quizInitialTopic, setQuizInitialTopic] = useState<{ id?: string; name?: string; questions?: QuizQuestion[] }>({});
+  const [quizInitialTopic, setQuizInitialTopic] = useState<{ id?: string; name?: string; questions?: QuizQuestion[]; quizId?: string }>({});
 
   const refreshAllData = async () => {
     try {
@@ -102,8 +102,8 @@ export default function App() {
     }
   };
 
-  const handleStartQuizWithTopic = (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => {
-    setQuizInitialTopic({ id: topicId, name: topicName, questions });
+  const handleStartQuizWithTopic = (topicId?: string, topicName?: string, questions?: QuizQuestion[], quizId?: string) => {
+    setQuizInitialTopic({ id: topicId, name: topicName, questions, quizId });
     setCurrentView('quiz');
   };
 
@@ -192,6 +192,7 @@ export default function App() {
                 initialTopicId={quizInitialTopic.id}
                 initialTopicName={quizInitialTopic.name}
                 initialQuizQuestions={quizInitialTopic.questions}
+                initialQuizId={quizInitialTopic.quizId}
                 onConsumeInitialQuiz={() => setQuizInitialTopic({})}
                 onRefreshData={refreshAllData}
                 onNavigateToChat={() => setCurrentView('chat')}

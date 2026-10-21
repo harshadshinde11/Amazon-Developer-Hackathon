@@ -80,7 +80,9 @@ Formatting guidelines:
   // Graceful, high-quality fallback based on query
   const lastUserMsg = messages[messages.length - 1]?.content.toLowerCase() || '';
   if (lastUserMsg.includes('a*') || lastUserMsg.includes('astar')) {
-    return `### The A* Search Algorithm Explained (${mode.toUpperCase()} Mode)
+    return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
+
+### The A* Search Algorithm Explained (${mode.toUpperCase()} Mode)
 
 The **A* (A-star) algorithm** is one of the most widely used pathfinding and graph traversal algorithms in computer science and artificial intelligence (such as in Google Maps routing and video game NPC navigation).
 
@@ -110,7 +112,9 @@ What happens if $h(n) = 0$ for all nodes?
   }
 
   if (lastUserMsg.includes('binary search')) {
-    return `### Binary Search: Fast Lookup in O(log n) Time
+    return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
+
+### Binary Search: Fast Lookup in O(log n) Time
 
 Binary Search is a classic divide-and-conquer algorithm designed to locate a target value in a **strictly sorted array**.
 
@@ -146,7 +150,9 @@ function binarySearch(arr: number[], target: number): number {
 *Exam Note:* Remember the prerequisite: Binary search requires the dataset to be sorted!`;
   }
 
-  return `### StudyPilot AI: Key Insights on ${subjectName}
+  return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
+
+### StudyPilot AI: Key Insights on ${subjectName}
 
 Here is a structured breakdown for **${messages[messages.length - 1]?.content}**:
 
@@ -287,7 +293,7 @@ Output MUST be valid JSON matching this schema:
 
   return {
     title: `${subjectName} Mastery Sprint`,
-    priorityRationale: rationale,
+    priorityRationale: `Demo mode: Gemini was unavailable, so this schedule was generated with local rules. ${rationale}`,
     totalHours: Math.round((totalMinutes / 60) * 10) / 10,
     sessions: sessionList,
   };
@@ -357,6 +363,7 @@ Output MUST be a JSON array of objects with schema:
             correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
             explanation: q.explanation || 'Verified correct response.',
             commonMistakes: q.commonMistakes,
+            generationMode: 'gemini' as const,
           }));
         }
       }
@@ -438,7 +445,7 @@ Output MUST be a JSON array of objects with schema:
         explanation: 'In a 4-directional grid, Manhattan distance matches the minimum possible steps with no obstacles, making it admissible.',
         commonMistakes: 'Using squared Euclidean distance which vastly overestimates path lengths.',
       },
-    ];
+    ].map((question) => ({ ...question, type: question.type as QuizQuestion['type'], generationMode: 'demo' as const }));
   }
 
   // Generic robust topic question generator
@@ -482,7 +489,7 @@ Output MUST be a JSON array of objects with schema:
       correctAnswer: 0,
       explanation: `Boundary conditions, empty inputs, and termination criteria are the leading causes of logic faults.`,
     },
-  ];
+  ].map((question) => ({ ...question, type: question.type as QuizQuestion['type'], generationMode: 'demo' as const }));
 }
 
 export async function summarizeNotesWithAI(params: {
@@ -528,7 +535,7 @@ Output as JSON with keys: "summary" (string), "keyTakeaways" (string[]), "sugges
   // Fallback summarizer
   const lines = notesText.split('\n').filter((l) => l.trim().length > 0);
   return {
-    summary: `Structured synthesis of ${lines.length} key points from your notes on ${subjectName}. The concepts emphasize algorithmic rigor, state transitions, and edge-case handling for upcoming assessments.`,
+    summary: `Demo mode: Gemini was unavailable, so this is a generic local summary template, not an analysis of the note contents. ${lines.length} non-empty lines were found in your notes on ${subjectName}.`,
     keyTakeaways: [
       `Master the core invariant: verify prerequisites before applying the primary method.`,
       `Time and space complexity bounds determine whether the approach scales.`,

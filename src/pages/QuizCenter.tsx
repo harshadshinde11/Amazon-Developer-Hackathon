@@ -167,7 +167,7 @@ export const QuizCenter: React.FC = () => {
             <span>Quiz Center & Topic Mastery Assessment</span>
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Diagnostic quizzes powered by Gemini. Real scores feed directly into your Adaptive Learning recommendations.
+            Gemini-generated when configured; otherwise the active quiz is labeled as a local demo question bank. Saved attempts feed adaptive recommendations.
           </p>
         </div>
 

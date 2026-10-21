@@ -71,13 +71,15 @@ StudyPilot AI includes an **Alexa+-inspired in-app simulation** for the Amazon D
 | `explain_topic` | `topic_name`, `difficulty`, `mode` | Uses the existing tutor service for a level-appropriate explanation |
 | `generate_quiz` | Saved `topic_name`, `difficulty`, `num_questions` | Uses the existing quiz generator; questions are handed to Quiz Center and attempts persist on submission |
 | `get_student_progress` | optional saved `subject_name` | Returns saved quiz attempts, study sessions, and computed topic performance |
+| `evaluate_quiz` | server-issued `quiz_id`, selected option indexes, optional `time_spent_seconds` | Evaluates against the server-held answer key and persists the attempt once |
+| `get_upcoming_tasks` | optional `days_ahead` (1–90, default 7) | Returns pending sessions from saved study plans within the date window |
 | `recommend_revision` | none | Uses persisted quiz scores, topic mastery, study sessions, and examination dates |
 
 ### Tool Architecture
 
 - `src/components/ChatView.tsx` and `src/components/VoiceAssistantView.tsx` send requests to the shared backend router.
 - `server.ts` exposes `/api/ai/assistant`, `/api/ai/voice-command`, and `/api/alexa-plus/invoke`.
-- `server/alexaPlusTools.ts` identifies intents, requests missing details, validates arguments, invokes tools, and returns the backend result plus concise speech text.
+- `server/alexaPlusTools.ts` identifies intents, requests missing details, validates arguments, invokes tools, and returns the backend result plus concise speech text. Quiz Center submissions use `evaluate_quiz`, so the server calculates and saves the result used by recommendations.
 - Tools read and write through `server/db.ts` to `data/studypilot_db.json`. The default demo dataset is initialized when the file is absent; it is not a source of new quiz scores.
 - Generated questions are passed to the existing Quiz Center. Only submitted answers create a persisted quiz attempt, which then feeds revision recommendations.
 - Browser speech recognition and speech synthesis are optional browser capabilities. Typed input remains available.
@@ -96,12 +98,24 @@ curl -X POST http://localhost:3000/api/alexa-plus/invoke \
 
 ## Setup and Limitations
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env` and configure `GEMINI_API_KEY` if AI-generated explanations, plans, and questions are desired. Without a usable Gemini API key, the existing service fallback is used.
-3. Start the app with `npm run dev` and open `http://localhost:3000`.
-4. Run checks with `npm run lint` and `npm test`.
+1. Install Node.js 20 or later, open this folder in VS Code, and run `npm install` in its terminal.
+2. Copy `.env.example` to `.env` and configure `GEMINI_API_KEY` for Gemini-generated explanations, plans, and questions. The key is read by the backend only. Without a usable key, deterministic demo fallbacks are used.
+3. Start frontend and backend together with `npm run dev`, then open `http://localhost:3000`.
+4. Run `npm run lint`, `npm test`, and `npm run build` for verification.
 
-The simulation does not connect to Amazon Alexa+, Echo devices, an Alexa+ runtime, or an MCP server. Browser speech recognition varies by browser and may require microphone permission; speech synthesis may use the device's installed voices. Tool intent recognition is a local pattern-based router rather than an Alexa+ model/runtime. Study data is stored in the existing local JSON file and is intended for this demo, not concurrent or production multi-user workloads.
+### Windows / VS Code Setup
+
+In PowerShell, run `Copy-Item .env.example .env`, edit `.env` with a valid `GEMINI_API_KEY` if available, then run `npm install` and `npm run dev`. If PowerShell blocks the `npm` script shim due to execution policy, use `npm.cmd install`, `npm.cmd run dev`, and the corresponding `npm.cmd` check commands. Do not commit `.env`.
+
+### Demo Workflow
+
+1. Open Study Chat and ask about a saved topic, such as “Explain A* Search Algorithm.”
+2. Ask “Show my weak topics” to invoke recommendations from persisted quiz attempts.
+3. Ask “Create my revision plan for Algorithms & Data Structures” and complete any requested details; the tool saves the plan.
+4. Ask “Quiz me on A* Search Algorithm,” choose **Take and submit quiz**, answer the questions, and submit.
+5. Return to analytics or ask “Show my weak topics” again to see recommendations derived from the saved result.
+
+The simulation does not connect to Amazon Alexa+, Echo devices, an Alexa+ runtime, or an MCP server. Browser speech recognition varies by browser and may require microphone permission; speech synthesis may use the device's installed voices. Tool intent recognition is a local pattern-based router rather than an Alexa+ model/runtime. Quiz sessions hold their generated answer key in backend memory and expire on backend restart; saved quiz attempts and plans remain in the JSON database. Study data is intended for this single-user demo, not concurrent or production multi-user workloads.
 
 ## Tech Stack
 

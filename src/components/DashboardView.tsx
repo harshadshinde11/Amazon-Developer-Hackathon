@@ -88,7 +88,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-semibold mb-3">
               <Sparkles size={13} className="text-purple-400" />
-              <span>Amazon Developer Hackathon 2026 Ready</span>
+              <span>Hackathon demo workspace</span>
             </div>
             <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
               Good day, {user.displayName || 'Student'}! 👋

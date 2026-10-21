@@ -72,6 +72,7 @@ export interface QuizQuestion {
   correctAnswer: number; // 0-indexed for mcq/true_false
   explanation: string;
   commonMistakes?: string;
+  generationMode?: 'gemini' | 'demo';
 }
 
 export interface QuizAnswerRecord {

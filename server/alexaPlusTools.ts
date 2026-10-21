@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   getSubjects,
   getTopics,
@@ -16,7 +17,35 @@ import {
   generateQuizWithAI,
   generateStudyPlanWithAI,
 } from './geminiService.js';
-import { AlexaToolManifest } from '../src/types.js';
+import { AlexaToolManifest, QuizQuestion } from '../src/types.js';
+
+interface ActiveQuizSession {
+  topicId: string;
+  subjectId: string;
+  subjectName: string;
+  topicName: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  questions: QuizQuestion[];
+  createdAt: number;
+}
+
+const activeQuizSessions = new Map<string, ActiveQuizSession>();
+
+export function registerQuizForEvaluation(session: Omit<ActiveQuizSession, 'createdAt'>): string {
+  const now = Date.now();
+  for (const [id, activeSession] of activeQuizSessions) {
+    if (now - activeSession.createdAt > 2 * 60 * 60 * 1000) activeQuizSessions.delete(id);
+  }
+  while (activeQuizSessions.size >= 100) {
+    const oldestId = activeQuizSessions.keys().next().value;
+    if (!oldestId) break;
+    activeQuizSessions.delete(oldestId);
+  }
+
+  const quizId = randomUUID();
+  activeQuizSessions.set(quizId, { ...session, createdAt: now });
+  return quizId;
+}
 
 export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
   {
@@ -66,6 +95,30 @@ export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
       type: 'object',
       properties: {
         subject_name: { type: 'string', description: 'Optional subject filter' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'evaluate_quiz',
+    description: 'Calculates a quiz score from submitted answers and saves the attempt to student progress.',
+    parameters: {
+      type: 'object',
+      properties: {
+        quiz_id: { type: 'string', description: 'Opaque ID returned when the backend generated this quiz' },
+        selected_answers: { type: 'array', description: 'Selected option indexes in question order; use -1 for unanswered questions' },
+        time_spent_seconds: { type: 'number', description: 'Time spent taking the quiz in seconds (optional)' },
+      },
+      required: ['quiz_id', 'selected_answers'],
+    },
+  },
+  {
+    name: 'get_upcoming_tasks',
+    description: 'Lists pending study sessions from saved plans for the requested number of upcoming days.',
+    parameters: {
+      type: 'object',
+      properties: {
+        days_ahead: { type: 'number', description: 'Number of days to look ahead, from 1 to 90 (default 7)' },
       },
       required: [],
     },
@@ -275,6 +328,14 @@ export async function executeAlexaTool(
           difficulty,
           numQuestions,
         });
+        const quizId = registerQuizForEvaluation({
+          topicId: topic.id,
+          subjectId: topic.subjectId,
+          subjectName: subject?.name || 'General Studies',
+          topicName: topic.name,
+          difficulty,
+          questions,
+        });
 
         return {
           success: true,
@@ -286,6 +347,7 @@ export async function executeAlexaTool(
             subjectName: subject?.name,
             topicName: topic.name,
             difficulty,
+            quizId,
             totalQuestions: questions.length,
             questions,
           },
@@ -331,6 +393,100 @@ export async function executeAlexaTool(
             quizAttempts: scopedAttempts,
             topicPerformance: analytics,
           },
+          timestamp,
+        };
+      }
+
+      case 'evaluate_quiz': {
+        const quizId = typeof args.quiz_id === 'string' ? args.quiz_id : '';
+        const quizSession = activeQuizSessions.get(quizId);
+        if (!quizSession) {
+          return failure(toolName, 'This quiz is no longer available for evaluation. Generate a new quiz and try again.', 'Unknown or expired quiz_id', timestamp);
+        }
+        const topic = getTopics().find((candidate) => candidate.id === quizSession.topicId);
+        if (!topic || !Array.isArray(args.selected_answers)
+          || args.selected_answers.length !== quizSession.questions.length) {
+          return failure(toolName, 'The quiz answers do not match the generated question set.', 'Invalid selected_answers', timestamp);
+        }
+
+        const answers = [];
+        for (const [index, question] of quizSession.questions.entries()) {
+          const selectedAnswer = args.selected_answers[index];
+          if (!question || typeof question.id !== 'string' || typeof question.question !== 'string'
+            || !Array.isArray(question.options) || question.options.length < 2 || question.options.length > 6
+            || !Number.isInteger(question.correctAnswer) || question.correctAnswer < 0
+            || question.correctAnswer >= question.options.length || typeof question.explanation !== 'string'
+            || !Number.isInteger(selectedAnswer) || (selectedAnswer as number) < -1
+            || (selectedAnswer as number) >= question.options.length) {
+            return failure(toolName, 'One or more answer records are invalid.', 'Invalid answer record', timestamp);
+          }
+
+          answers.push({
+            questionId: question.id,
+            question: question.question,
+            options: question.options,
+            selectedAnswer: selectedAnswer as number,
+            correctAnswer: question.correctAnswer,
+            isCorrect: selectedAnswer === question.correctAnswer,
+            explanation: question.explanation,
+            ...(question.commonMistakes ? { commonMistakes: question.commonMistakes } : {}),
+          });
+        }
+
+        const timeSpentSeconds = args.time_spent_seconds === undefined ? 0 : Number(args.time_spent_seconds);
+        if (!Number.isInteger(timeSpentSeconds) || timeSpentSeconds < 0 || timeSpentSeconds > 86400) {
+          return failure(toolName, 'Time spent must be between 0 and 86,400 seconds.', 'Invalid time_spent_seconds', timestamp);
+        }
+
+        const score = answers.filter((answer) => answer.isCorrect).length;
+        const percentage = Math.round((score / answers.length) * 100);
+        const attempt = saveQuizAttempt({
+          userId: getUser().id,
+          subjectId: quizSession.subjectId,
+          subjectName: quizSession.subjectName,
+          topicId: topic.id,
+          topicName: quizSession.topicName,
+          difficulty: quizSession.difficulty,
+          score,
+          totalQuestions: answers.length,
+          percentage,
+          timeSpentSeconds,
+          answers,
+        });
+        activeQuizSessions.delete(quizId);
+
+        return {
+          success: true,
+          tool: toolName,
+          speechText: `Quiz saved for ${quizSession.topicName}: ${score} of ${answers.length} correct, or ${percentage}%.`,
+          data: attempt,
+          timestamp,
+        };
+      }
+
+      case 'get_upcoming_tasks': {
+        const daysAhead = args.days_ahead === undefined ? 7 : Number(args.days_ahead);
+        if (!Number.isInteger(daysAhead) || daysAhead < 1 || daysAhead > 90) {
+          return failure(toolName, 'Choose a look-ahead period between 1 and 90 days.', 'Invalid days_ahead', timestamp);
+        }
+
+        const startDate = today();
+        const end = new Date(`${startDate}T00:00:00.000Z`);
+        end.setUTCDate(end.getUTCDate() + daysAhead);
+        const endDate = end.toISOString().slice(0, 10);
+        const tasks = getStudyPlans()
+          .flatMap((plan) => plan.sessions
+            .filter((session) => session.status === 'pending' && session.scheduledDate >= startDate && session.scheduledDate <= endDate)
+            .map((session) => ({ ...session, planId: plan.id, planTitle: plan.title })))
+          .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime));
+
+        return {
+          success: true,
+          tool: toolName,
+          speechText: tasks.length
+            ? `You have ${tasks.length} saved study task${tasks.length === 1 ? '' : 's'} due in the next ${daysAhead} days.`
+            : `You have no pending saved study tasks in the next ${daysAhead} days.`,
+          data: { startDate, endDate, daysAhead, tasks },
           timestamp,
         };
       }
@@ -447,6 +603,7 @@ export async function routeStudyAssistantRequest(
     difficulty?: 'beginner' | 'intermediate' | 'advanced';
     mode?: 'simple' | 'exam' | 'tutorial' | 'revision' | 'practice';
     pendingTool?: { name: string; arguments: Record<string, unknown> };
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   } = {}
 ): Promise<AssistantRouteResult> {
   const text = requestText.trim();
@@ -508,6 +665,8 @@ export async function routeStudyAssistantRequest(
   } else if (tool === 'get_student_progress' || /\b(progress|how much did i study|study hours|quiz scores|performance|streak|study sessions)\b/.test(normalized)) {
     tool = 'get_student_progress';
     if (subject) args.subject_name = subject.name;
+  } else if (tool === 'get_upcoming_tasks' || /\b(upcoming tasks?|what s due|what is due|deadlines?|sessions due)\b/.test(normalized)) {
+    tool = 'get_upcoming_tasks';
   }
 
   if (clarification) {
@@ -534,7 +693,10 @@ export async function routeStudyAssistantRequest(
   }
 
   const response = await chatWithTutor({
-    messages: [{ role: 'user', content: text }],
+    messages: [
+      ...(Array.isArray(context.history) ? context.history.slice(-12) : []),
+      { role: 'user', content: text },
+    ],
     subjectName: context.subjectName,
     mode: context.mode,
     difficulty: context.difficulty,

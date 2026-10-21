@@ -30,8 +30,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/chat', label: 'AI Study Chat', icon: MessageSquare, badge: 'GPT-4o/Gemini' },
-    { to: '/voice', label: 'Voice Assistant', icon: Mic, pulse: true, badge: 'Alexa+' },
+    { to: '/chat', label: 'AI Study Chat', icon: MessageSquare, badge: 'Tutor' },
+    { to: '/voice', label: 'Voice Assistant', icon: Mic, badge: 'Web speech' },
     { to: '/planner', label: 'Study Planner', icon: Calendar },
     { to: '/quiz', label: 'Quiz Center', icon: CheckCircle2 },
     { to: '/subjects', label: 'My Subjects', icon: BookOpen },
@@ -88,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className={`p-1.5 rounded-lg transition-colors ${
                           isActive
                             ? 'bg-purple-600 text-white'
-                            : item.pulse
+                            : 'pulse' in item && item.pulse
                             ? 'bg-blue-500/20 text-blue-400 group-hover:bg-blue-500 group-hover:text-white'
                             : 'text-slate-400 group-hover:text-slate-200'
                         }`}
@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span>{item.label}</span>
                     </div>
 
-                    {item.pulse && !isActive && (
+                    {'pulse' in item && item.pulse && !isActive && (
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
@@ -145,9 +145,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-semibold text-slate-200">Harshad</span>
-              <span className="text-[10px] text-emerald-400 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block" />
-                Alexa+ Connected
+              <span className="text-[10px] text-slate-400">
+                Browser simulation
               </span>
             </div>
           </div>

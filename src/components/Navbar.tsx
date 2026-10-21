@@ -25,8 +25,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const titles: Record<NavView, { title: string; subtitle: string }> = {
     dashboard: { title: 'Study Dashboard', subtitle: 'Welcome back! Today is a great day to learn.' },
-    chat: { title: 'AI Study Chat', subtitle: 'Conversational tutor powered by Gemini 3.8 Flash' },
-    voice: { title: 'Alexa-Inspired Voice Assistant', subtitle: 'Speak naturally to manage plans, quizzes, and topics' },
+    chat: { title: 'AI Study Chat', subtitle: 'Gemini when configured; otherwise clearly labeled demo responses' },
+    voice: { title: 'Voice Assistant', subtitle: 'Browser speech with text input as a fallback' },
     planner: { title: 'AI Study Planner', subtitle: 'Targeted schedules aligned with your upcoming exams' },
     quiz: { title: 'Quiz Center & Assessment', subtitle: 'Adaptive diagnostic quizzes with detailed reviews' },
     subjects: { title: 'My Subjects & Notes', subtitle: 'Organize coursework, topics, and auto-summarize notes' },

@@ -33,13 +33,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const titles: Record<string, { title: string; subtitle: string }> = {
     '/': { title: 'Study Dashboard', subtitle: 'Welcome back! Today is a great day to learn.' },
-    '/chat': { title: 'AI Study Chat', subtitle: 'Conversational tutor powered by Gemini 3.8 Flash' },
+    '/chat': { title: 'AI Study Chat', subtitle: 'Gemini when configured; otherwise clearly labeled demo responses' },
     '/voice': { title: 'Voice Assistant', subtitle: 'Speak naturally to manage plans, quizzes, and topics' },
     '/planner': { title: 'AI Study Planner', subtitle: 'Targeted schedules aligned with your upcoming exams' },
     '/quiz': { title: 'Quiz Center & Assessment', subtitle: 'Adaptive diagnostic quizzes with detailed reviews' },
     '/subjects': { title: 'My Subjects & Notes', subtitle: 'Organize coursework, topics, and auto-summarize notes' },
     '/analytics': { title: 'Progress Analytics', subtitle: 'Performance charts, streak metrics, and topic mastery ratings' },
-    '/alexa-plus': { title: 'Amazon Developer Hackathon 2026', subtitle: 'Official Alexa+ Track & MCP Tools Server' },
+    '/alexa-plus': { title: 'Study Assistant Tools', subtitle: 'Alexa+-inspired local web simulation; no runtime or MCP connection' },
     '/settings': { title: 'Settings & Preferences', subtitle: 'Configure study targets, speech synthesis, and datasets' },
   };
 

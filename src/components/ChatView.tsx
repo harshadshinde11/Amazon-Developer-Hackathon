@@ -21,7 +21,7 @@ interface ChatViewProps {
   subjects: Subject[];
   conversations: Conversation[];
   onRefreshConversations: () => void;
-  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[]) => void;
+  onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[], quizId?: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -87,6 +87,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const previousPending = [...messages].reverse().find((message) => message.role === 'assistant' && message.pendingTool)?.pendingTool;
       const response = await api.runAssistant({
         message: content,
+        history: messages.slice(-12).map((message) => {
+          const explanation = (message.toolCall?.result as { data?: { explanation?: string } } | undefined)?.data?.explanation;
+          return {
+            role: message.role,
+            content: typeof explanation === 'string' ? explanation : message.content,
+          };
+        }),
         subjectName: selectedSubject,
         mode,
         difficulty,
@@ -475,12 +482,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         )}
                         {invocation?.success && msg.toolCall.name === 'generate_quiz' && resultData && (
                           <div className="mt-2 space-y-2">
-                            <p className="text-slate-300">{resultData.totalQuestions} questions on {resultData.topicName}.</p>
+                            <p className="text-slate-300">
+                              {resultData.totalQuestions} questions on {resultData.topicName} · {questions?.[0]?.generationMode === 'demo' ? 'local demo question bank' : 'Gemini-generated'}.
+                            </p>
                             {questions?.slice(0, 3).map((question, index) => (
                               <p key={question.id} className="text-slate-400">{index + 1}. {question.question}</p>
                             ))}
                             <button
-                              onClick={() => onStartQuizWithTopic(resultData.topicId, resultData.topicName, questions)}
+                              onClick={() => onStartQuizWithTopic(resultData.topicId, resultData.topicName, questions, resultData.quizId)}
                               className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-blue-600/80 px-3 py-1.5 font-semibold text-white hover:bg-blue-500"
                             >
                               <GraduationCap size={13} /> Take and submit quiz
@@ -506,6 +515,23 @@ export const ChatView: React.FC<ChatViewProps> = ({
                             {resultData.recommendations?.slice(0, 3).map((recommendation: any) => (
                               <p key={recommendation.id} className="text-slate-400">{recommendation.title}: {recommendation.description}</p>
                             ))}
+                          </div>
+                        )}
+                        {invocation?.success && msg.toolCall.name === 'get_upcoming_tasks' && resultData && (
+                          <div className="mt-2 space-y-1 text-slate-300">
+                            <p>Saved pending sessions through {resultData.endDate}:</p>
+                            {resultData.tasks?.length
+                              ? resultData.tasks.map((task: any) => (
+                                <p key={task.id} className="text-slate-400">
+                                  {task.scheduledDate} {task.startTime} · {task.topicName} ({task.durationMinutes} min)
+                                </p>
+                              ))
+                              : <p className="text-slate-400">No pending saved sessions in this period.</p>}
+                          </div>
+                        )}
+                        {invocation?.success && msg.toolCall.name === 'explain_topic' && resultData?.explanation && (
+                          <div className="mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap text-slate-300">
+                            {resultData.explanation}
                           </div>
                         )}
                         {!invocation?.success && invocation?.error && <p className="mt-2 text-rose-300">{invocation.error}</p>}

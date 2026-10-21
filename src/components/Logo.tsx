@@ -43,7 +43,7 @@ export const Logo: React.FC<LogoProps> = ({ className = '', size = 32, showText 
             </span>
           </div>
           <span className="text-[11px] font-medium text-slate-400 tracking-wide">
-            Amazon Alexa+ 2026
+            Personal study assistant
           </span>
         </div>
       )}
