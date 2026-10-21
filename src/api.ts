@@ -10,6 +10,7 @@ import {
   AdaptiveRecommendation,
   QuizQuestion,
   AlexaToolManifest,
+  AgentActionRecord,
 } from './types.js';
 
 export interface AnalyticsResponse {
@@ -199,6 +200,7 @@ export const api = {
     data: any;
     success: boolean;
     pendingTool?: { name: string; arguments: Record<string, unknown> };
+    actionHistory?: AgentActionRecord[];
     toolCall?: { name: string; arguments: Record<string, unknown>; result: any };
   }> {
     const res = await fetch('/api/ai/assistant', {
@@ -265,6 +267,7 @@ export const api = {
     data: any;
     success: boolean;
     pendingTool?: { name: string; arguments: Record<string, unknown> };
+    actionHistory?: AgentActionRecord[];
     toolCall?: { name: string; arguments: Record<string, unknown>; result: any };
   }> {
     const res = await fetch('/api/ai/voice-command', {

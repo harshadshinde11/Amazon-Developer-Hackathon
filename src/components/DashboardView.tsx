@@ -24,6 +24,7 @@ interface DashboardViewProps {
   topicAnalytics: TopicAnalytics[];
   recommendations: AdaptiveRecommendation[];
   onNavigate: (view: NavView) => void;
+  onStartAdaptiveCoach: () => void;
   onStartQuiz: (topicId?: string, topicName?: string) => void;
   onCompleteSession: (planId: string, sessionId: string) => void;
   onResetDemo: () => void;
@@ -37,6 +38,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   topicAnalytics,
   recommendations,
   onNavigate,
+  onStartAdaptiveCoach,
   onStartQuiz,
   onCompleteSession,
   onResetDemo,
@@ -48,6 +50,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const weakTopics = topicAnalytics.filter((t) => t.status === 'Needs revision');
   const strongTopics = topicAnalytics.filter((t) => t.status === 'Strong');
+  const nextRecommendedSession = allSessions
+    .filter((session) => session.status === 'pending' && session.scheduledDate >= todayStr)
+    .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime))[0];
+  const nextExamSubject = subjects
+    .filter((subject) => subject.examinationDate && subject.examinationDate >= todayStr)
+    .sort((a, b) => (a.examinationDate || '').localeCompare(b.examinationDate || ''))[0];
+  const examDaysLeft = nextExamSubject?.examinationDate
+    ? Math.ceil((new Date(`${nextExamSubject.examinationDate}T00:00:00.000Z`).getTime() - new Date(`${todayStr}T00:00:00.000Z`).getTime()) / 86400000)
+    : undefined;
+  const totalPlannedSessions = allSessions.length;
+  const completedPlannedSessions = allSessions.filter((session) => session.status === 'completed').length;
+  const planCompletion = totalPlannedSessions ? Math.round(completedPlannedSessions / totalPlannedSessions * 100) : 0;
 
   // Empty state handling
   const isEmptyState = subjects.length === 0 && quizAttempts.length === 0 && plans.length === 0;
@@ -121,6 +135,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Subtle background decoration */}
         <div className="absolute -top-12 -right-12 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
       </div>
+
+      <section className="rounded-xl border border-cyan-500/25 bg-slate-900/60 p-5" aria-labelledby="adaptive-coach-heading">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-cyan-200">
+              <Brain size={17} />
+              <h3 id="adaptive-coach-heading" className="text-sm font-bold">StudyPilot Adaptive Coach</h3>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              {topicAnalytics.some((topic) => topic.attemptsCount > 0)
+                ? 'Recommendations are based on your saved quiz attempts and study sessions.'
+                : 'No quiz history yet. Take a diagnostic quiz to establish a baseline; no weak areas are inferred.'}
+            </p>
+          </div>
+          <button
+            onClick={onStartAdaptiveCoach}
+            className="shrink-0 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+          >
+            {topicAnalytics.some((topic) => topic.attemptsCount > 0) ? 'Ask Adaptive Coach' : 'Start diagnostic with Coach'}
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <p className="text-[10px] font-semibold uppercase text-slate-500">Weak topics</p>
+            {weakTopics.length
+              ? weakTopics.slice(0, 3).map((topic) => (
+                <p key={topic.topicId} className="mt-1 text-xs text-amber-200">{topic.topicName} · {topic.averageScore}% ({topic.attemptsCount} attempts)</p>
+              ))
+              : <p className="mt-1 text-xs text-slate-300">{topicAnalytics.some((topic) => topic.attemptsCount > 0) ? 'No saved topics below 60%.' : 'Awaiting diagnostic results.'}</p>}
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <p className="text-[10px] font-semibold uppercase text-slate-500">Next recommended task</p>
+            <p className="mt-1 text-xs font-semibold text-slate-200">{nextRecommendedSession?.topicName || (weakTopics[0] ? `Diagnostic review: ${weakTopics[0].topicName}` : 'No pending plan tasks')}</p>
+            {nextRecommendedSession && <p className="mt-0.5 text-[11px] text-slate-400">{nextRecommendedSession.scheduledDate} · {nextRecommendedSession.durationMinutes} min</p>}
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <p className="text-[10px] font-semibold uppercase text-slate-500">Exam and plan progress</p>
+            <p className="mt-1 text-xs font-semibold text-slate-200">
+              {nextExamSubject ? `${nextExamSubject.name} · ${examDaysLeft === 0 ? 'exam today' : `${examDaysLeft} days left`}` : 'No upcoming exam date saved'}
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-400">{completedPlannedSessions}/{totalPlannedSessions} planned sessions complete · {planCompletion}%</p>
+          </div>
+        </div>
+      </section>
 
       {/* Top 4 KPI Metrics Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

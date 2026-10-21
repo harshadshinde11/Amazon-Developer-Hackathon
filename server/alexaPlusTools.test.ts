@@ -8,18 +8,19 @@ const dataDir = mkdtempSync(path.join(tmpdir(), 'studypilot-agent-test-'));
 process.env.STUDYPILOT_DATA_DIR = dataDir;
 
 const db = await import('./db.js');
-const { executeAlexaTool, registerQuizForEvaluation } = await import('./alexaPlusTools.js');
+const { executeAlexaTool, registerQuizForEvaluation, routeStudyAssistantRequest } = await import('./alexaPlusTools.js');
 const { generateQuizWithAI } = await import('./geminiService.js');
 
 after(() => rmSync(dataDir, { recursive: true, force: true }));
 
-function createSubjectAndTopic() {
+function createSubjectAndTopic(examinationDate?: string) {
   const subject = db.createSubject({
     userId: db.getUser().id,
     name: 'Test Computer Science',
     code: 'TCS',
     color: '#008c8c',
     icon: 'BookOpen',
+    examinationDate,
   });
   const topic = db.createTopic({
     subjectId: subject.id,
@@ -150,4 +151,79 @@ test('demo quiz generation returns the requested question count and provenance',
     if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalApiKey;
   }
+});
+
+test('adaptive coach requests a diagnostic and does not plan without saved quiz history', async () => {
+  db.resetToEmpty();
+  const { subject } = createSubjectAndTopic(dateOffset(10));
+  const result = await routeStudyAssistantRequest(`Prepare me for my exam in ${subject.name}`);
+
+  assert.equal(result.recognizedIntent, 'adaptive_study_coach');
+  assert.equal(result.action, 'DIAGNOSTIC_REQUIRED');
+  assert.equal((result.toolCall?.result.data as { totalQuestions: number }).totalQuestions, 5);
+  assert.equal(db.getStudyPlans().length, 0);
+  assert.deepEqual(result.actionHistory?.map((action) => action.tool), ['get_student_progress', 'generate_quiz']);
+});
+
+test('adaptive coach creates and logs a personalized plan from saved weak-topic results', async () => {
+  db.resetToEmpty();
+  const { subject, topic } = createSubjectAndTopic(dateOffset(10));
+  db.saveQuizAttempt({
+    userId: db.getUser().id,
+    subjectId: subject.id,
+    subjectName: subject.name,
+    topicId: topic.id,
+    topicName: topic.name,
+    difficulty: 'intermediate',
+    score: 2,
+    totalQuestions: 5,
+    percentage: 40,
+    timeSpentSeconds: 60,
+    answers: [],
+  });
+
+  const request = `Prepare me for my exam in ${subject.name}; I can study 1.5 hours a day`;
+  const result = await routeStudyAssistantRequest(request);
+  const plans = db.getStudyPlans();
+
+  assert.equal(result.success, true);
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].examDate, subject.examinationDate);
+  assert.equal((result.data as { id: string }).id, plans[0].id);
+  assert.ok(plans[0].coachRequestKey);
+  assert.ok(result.actionHistory?.some((action) => action.dataUsed.some((item) => item.includes(`${topic.name} (40%`))));
+  assert.equal(result.actionHistory?.at(-1)?.savedRecordId, plans[0].id);
+
+  const duplicate = await routeStudyAssistantRequest(request);
+  assert.equal(db.getStudyPlans().length, 1);
+  assert.equal(duplicate.actionHistory?.at(-1)?.status, 'reused');
+});
+
+test('adaptive coach asks for a missing exam date and resumes with the clarification', async () => {
+  db.resetToEmpty();
+  const { subject, topic } = createSubjectAndTopic();
+  db.saveQuizAttempt({
+    userId: db.getUser().id,
+    subjectId: subject.id,
+    subjectName: subject.name,
+    topicId: topic.id,
+    topicName: topic.name,
+    difficulty: 'intermediate',
+    score: 1,
+    totalQuestions: 5,
+    percentage: 20,
+    timeSpentSeconds: 60,
+    answers: [],
+  });
+
+  const initial = await routeStudyAssistantRequest(`Help me prepare for my exam in ${subject.name}`);
+  assert.equal(initial.action, 'ASK_FOR_DETAILS');
+  assert.equal(db.getStudyPlans().length, 0);
+
+  const resumed = await routeStudyAssistantRequest(dateOffset(14), {
+    pendingTool: initial.pendingTool,
+  });
+  assert.equal(resumed.success, true);
+  assert.equal(db.getStudyPlans().length, 1);
+  assert.equal(db.getStudyPlans()[0].examDate, dateOffset(14));
 });

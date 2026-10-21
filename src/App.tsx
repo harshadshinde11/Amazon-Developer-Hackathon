@@ -32,6 +32,7 @@ export default function App() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [adaptiveCoachLaunchId, setAdaptiveCoachLaunchId] = useState(0);
 
   // Core Data States
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -107,6 +108,11 @@ export default function App() {
     setCurrentView('quiz');
   };
 
+  const handleStartAdaptiveCoach = () => {
+    setAdaptiveCoachLaunchId((current) => current + 1);
+    setCurrentView('chat');
+  };
+
   const allSessions = plans.flatMap((p) => p.sessions.map((s) => ({ ...s, planId: p.id })));
 
   return (
@@ -151,6 +157,7 @@ export default function App() {
                 topicAnalytics={analytics?.topicAnalytics || []}
                 recommendations={analytics?.recommendations || []}
                 onNavigate={setCurrentView}
+                onStartAdaptiveCoach={handleStartAdaptiveCoach}
                 onStartQuiz={handleStartQuizWithTopic}
                 onCompleteSession={handleCompleteSession}
                 onResetDemo={handleResetDemo}
@@ -161,6 +168,7 @@ export default function App() {
               <ChatView
                 subjects={subjects}
                 conversations={conversations}
+                adaptiveCoachLaunchId={adaptiveCoachLaunchId}
                 onRefreshConversations={refreshAllData}
                 onStartQuizWithTopic={handleStartQuizWithTopic}
               />

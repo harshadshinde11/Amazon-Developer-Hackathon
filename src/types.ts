@@ -61,6 +61,7 @@ export interface StudyPlan {
   totalHours: number;
   createdAt: string;
   priorityRationale?: string;
+  coachRequestKey?: string;
   sessions: StudySession[];
 }
 
@@ -118,6 +119,15 @@ export interface ChatMessage {
     name: string;
     params: Record<string, unknown>;
   };
+  actionHistory?: AgentActionRecord[];
+}
+
+export interface AgentActionRecord {
+  tool: string;
+  status: 'completed' | 'blocked' | 'failed' | 'reused';
+  summary: string;
+  dataUsed: string[];
+  savedRecordId?: string;
 }
 
 export interface Conversation {

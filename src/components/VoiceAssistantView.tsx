@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { NavView } from './Sidebar.js';
-import { QuizQuestion } from '../types.js';
+import { AgentActionRecord, QuizQuestion } from '../types.js';
 
 interface VoiceAssistantViewProps {
   onNavigate: (view: NavView) => void;
@@ -34,6 +34,7 @@ interface VoiceMessage {
   toolName?: string;
   success?: boolean;
   data?: any;
+  actionHistory?: AgentActionRecord[];
 }
 
 export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
@@ -204,6 +205,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
         toolName: result.toolCall?.name || result.pendingTool?.name,
         success: result.success,
         data: result.data,
+        actionHistory: result.actionHistory,
         timestamp: new Date().toISOString(),
       };
 
@@ -479,6 +481,18 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
               ))}
               {msg.toolName === 'generate_quiz' && msg.success && msg.data && (
                 <p className="mt-2 text-xs text-slate-300">Prepared {msg.data.totalQuestions} questions on {msg.data.topicName}; use "Take and submit quiz" to record your answers.</p>
+              )}
+              {msg.actionHistory && msg.actionHistory.length > 0 && (
+                <ol className="mt-2 space-y-1.5 border-l border-cyan-700/60 pl-3" aria-label="Adaptive Coach action history">
+                  {msg.actionHistory.map((action, index) => (
+                    <li key={`${action.tool}-${index}`} className="text-[11px]">
+                      <p className="font-semibold text-cyan-200">{action.tool} · {action.status}</p>
+                      <p className="text-slate-300">{action.summary}</p>
+                      <p className="text-slate-400">Used: {action.dataUsed.join('; ')}</p>
+                      {action.savedRecordId && <p className="text-emerald-300">Saved record: {action.savedRecordId}</p>}
+                    </li>
+                  ))}
+                </ol>
               )}
             </div>
           ))}

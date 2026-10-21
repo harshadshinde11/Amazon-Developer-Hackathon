@@ -17,7 +17,7 @@ import {
   generateQuizWithAI,
   generateStudyPlanWithAI,
 } from './geminiService.js';
-import { AlexaToolManifest, QuizQuestion } from '../src/types.js';
+import { AgentActionRecord, AlexaToolManifest, QuizQuestion } from '../src/types.js';
 
 interface ActiveQuizSession {
   topicId: string;
@@ -247,6 +247,7 @@ export async function executeAlexaTool(
           subjectId: existingSubject.id,
           subjectName,
           examDate,
+          ...(typeof args.coach_request_key === 'string' ? { coachRequestKey: args.coach_request_key } : {}),
           totalHours: generated.totalHours,
           priorityRationale: generated.priorityRationale,
           sessions: generated.sessions.map((s, idx) => ({
@@ -562,6 +563,7 @@ export interface AssistantRouteResult {
   success: boolean;
   pendingTool?: { name: string; arguments: Record<string, unknown> };
   toolCall?: { name: string; arguments: Record<string, unknown>; result: ToolInvocationResult };
+  actionHistory?: AgentActionRecord[];
 }
 
 function normalizeText(value: string): string {
@@ -615,6 +617,199 @@ export async function routeStudyAssistantRequest(
     || subjects.find((item) => item.name === context.subjectName);
   const topic = mentionedTopic(text, subject?.id)
     || (typeof pending?.arguments.topic_name === 'string' ? findTopic(pending.arguments.topic_name, subject?.id) : undefined);
+
+  const isAdaptiveCoachRequest = pending?.name === 'adaptive_study_coach'
+    || /\b(exam preparation|exam prep)\b/.test(normalized)
+    || /\b(?:prepare|prep|study)\b.{0,32}\b(?:exam|examination)\b/.test(normalized)
+    || /\b(?:exam|examination)\b.{0,32}\b(?:prepare|prep|study)\b/.test(normalized);
+
+  if (isAdaptiveCoachRequest) {
+    const progressArgs = subject ? { subject_name: subject.name } : {};
+    const progress = await executeAlexaTool('get_student_progress', progressArgs);
+    const progressData = progress.data as {
+      quizAttempts?: unknown[];
+      topicPerformance?: Array<{ topicId: string; topicName: string; attemptsCount: number; averageScore: number; status: string }>;
+    } | null;
+    const history: AgentActionRecord[] = [{
+      tool: 'get_student_progress',
+      status: progress.success ? 'completed' : 'failed',
+      summary: progress.success ? `Read ${progressData?.quizAttempts?.length || 0} saved quiz attempts and current topic performance.` : progress.error || 'Progress lookup failed.',
+      dataUsed: [subject ? `Saved progress for ${subject.name}` : 'Saved progress across all subjects'],
+    }];
+
+    if (!progress.success) {
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: progress.speechText,
+        action: 'TOOL_ERROR',
+        data: null,
+        success: false,
+        toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
+        actionHistory: history,
+      };
+    }
+
+    if (!subject) {
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: `I checked your saved progress. Which saved subject are you preparing for? ${subjects.map((item) => item.name).join(', ') || 'No subjects are saved yet.'}`,
+        action: 'ASK_FOR_DETAILS',
+        data: progress.data,
+        success: false,
+        pendingTool: { name: 'adaptive_study_coach', arguments: { ...(pending?.arguments || {}) } },
+        toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
+        actionHistory: history,
+      };
+    }
+
+    const subjectTopics = getTopics(subject.id);
+    const savedAttempts = progressData?.quizAttempts || [];
+    if (savedAttempts.length === 0) {
+      if (subjectTopics.length === 0) {
+        history.push({
+          tool: 'generate_quiz',
+          status: 'blocked',
+          summary: 'A diagnostic quiz cannot be prepared until this subject has saved topics.',
+          dataUsed: [`${subject.name} has no saved topics`],
+        });
+        return {
+          recognizedIntent: 'adaptive_study_coach',
+          speech: `There is no quiz history for ${subject.name}, and it has no saved topics yet. Add topics first, then I can prepare a diagnostic quiz before making a personalized plan.`,
+          action: 'DIAGNOSTIC_REQUIRED',
+          data: { subjectName: subject.name, quizAttempts: 0 },
+          success: false,
+          toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
+          actionHistory: history,
+        };
+      }
+
+      const diagnostic = await executeAlexaTool('generate_quiz', {
+        topic_name: subjectTopics[0].name,
+        difficulty: getUser().difficultyPreference,
+        num_questions: 5,
+      });
+      const diagnosticData = diagnostic.data as { topicName?: string } | null;
+      history.push({
+        tool: 'generate_quiz',
+        status: diagnostic.success ? 'completed' : 'failed',
+        summary: diagnostic.success ? `Prepared a diagnostic quiz for ${diagnosticData?.topicName || subjectTopics[0].name}; no result is saved until it is submitted.` : diagnostic.error || 'Diagnostic quiz generation failed.',
+        dataUsed: [`First saved topic: ${subjectTopics[0].name}`, 'No saved quiz attempts for this subject'],
+      });
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: diagnostic.success
+          ? `I checked saved progress for ${subject.name} and found no quiz history. Take this diagnostic quiz first; I will use its saved result to build your exam plan.`
+          : diagnostic.speechText,
+        action: diagnostic.success ? 'DIAGNOSTIC_REQUIRED' : 'TOOL_ERROR',
+        data: diagnostic.data,
+        success: diagnostic.success,
+        toolCall: { name: 'generate_quiz', arguments: { topic_name: subjectTopics[0].name, num_questions: 5 }, result: diagnostic },
+        actionHistory: history,
+      };
+    }
+
+    const topicPerformance = progressData?.topicPerformance || [];
+    const weakTopics = topicPerformance.filter((item) => item.status === 'Needs revision');
+    const examDate = parseRequestedDate(text)
+      || (typeof pending?.arguments.exam_date === 'string' ? pending.arguments.exam_date : subject.examinationDate);
+    const hoursMatch = normalized.match(/\b(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)\b/);
+    const hoursPerDay = hoursMatch
+      ? Number(hoursMatch[1])
+      : pending?.arguments.hours_per_day === undefined
+        ? getUser().preferredHoursPerDay
+        : Number(pending.arguments.hours_per_day);
+
+    if (!examDate || !validDate(examDate) || examDate < today()) {
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: `Your saved results show ${weakTopics.length} topic${weakTopics.length === 1 ? '' : 's'} needing revision${weakTopics.length ? `: ${weakTopics.map((item) => `${item.topicName} (${item.averageScore}%)`).join(', ')}` : ''}. What is your exam date for ${subject.name}? Please use YYYY-MM-DD.`,
+        action: 'ASK_FOR_DETAILS',
+        data: { subjectName: subject.name, weakTopics },
+        success: false,
+        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_name: subject.name, hours_per_day: hoursPerDay } },
+        toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
+        actionHistory: history,
+      };
+    }
+
+    if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0.25 || hoursPerDay > 12) {
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: 'Available study time must be between 0.25 and 12 hours per day. How much time can you study each day?',
+        action: 'ASK_FOR_DETAILS',
+        data: { subjectName: subject.name, weakTopics },
+        success: false,
+        pendingTool: { name: 'adaptive_study_coach', arguments: { subject_name: subject.name, exam_date: examDate } },
+        toolCall: { name: 'get_student_progress', arguments: progressArgs, result: progress },
+        actionHistory: history,
+      };
+    }
+
+    const weakSummary = weakTopics.length
+      ? weakTopics.map((item) => `${item.topicName} (${item.averageScore}% from ${item.attemptsCount} attempt${item.attemptsCount === 1 ? '' : 's'})`)
+      : ['No topic is below the revision threshold in saved quiz results'];
+    const coachRequestKey = [
+      subject.id,
+      examDate,
+      hoursPerDay,
+      ...weakTopics.map((item) => `${item.topicId}:${item.averageScore}:${item.attemptsCount}`).sort(),
+    ].join('|');
+    history[0] = {
+      ...history[0],
+      summary: `Read ${savedAttempts.length} saved quiz attempts; identified ${weakTopics.length} topic${weakTopics.length === 1 ? '' : 's'} needing revision.`,
+      dataUsed: [`${savedAttempts.length} saved quiz attempts for ${subject.name}`, ...weakSummary],
+    };
+
+    const duplicate = getStudyPlans().find((plan) => plan.coachRequestKey === coachRequestKey);
+    if (duplicate) {
+      history.push({
+        tool: 'create_study_plan',
+        status: 'reused',
+        summary: `Reused the recently saved exam plan ${duplicate.title}; no duplicate plan was created.`,
+        dataUsed: [`Exam date ${examDate}`, `${hoursPerDay} study hours per day`, ...weakSummary],
+        savedRecordId: duplicate.id,
+      });
+      const result: ToolInvocationResult = {
+        success: true,
+        tool: 'create_study_plan',
+        speechText: `I found your recently saved exam plan for ${subject.name} and avoided creating a duplicate.`,
+        data: duplicate,
+        timestamp: new Date().toISOString(),
+      };
+      return {
+        recognizedIntent: 'adaptive_study_coach',
+        speech: result.speechText,
+        action: 'adaptive_study_coach',
+        data: duplicate,
+        success: true,
+        toolCall: { name: 'create_study_plan', arguments: { subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay }, result },
+        actionHistory: history,
+      };
+    }
+
+    const planArgs = { subject_name: subject.name, exam_date: examDate, hours_per_day: hoursPerDay, coach_request_key: coachRequestKey };
+    const planResult = await executeAlexaTool('create_study_plan', planArgs);
+    const planData = planResult.data as { id?: string; title?: string; sessions?: unknown[] } | null;
+    history.push({
+      tool: 'create_study_plan',
+      status: planResult.success ? 'completed' : 'failed',
+      summary: planResult.success ? `Saved ${planData?.title || 'an exam study plan'} with ${planData?.sessions?.length || 0} sessions.` : planResult.error || 'Plan creation failed.',
+      dataUsed: [`Exam date ${examDate}`, `${hoursPerDay} study hours per day`, ...weakSummary],
+      ...(planResult.success && planData?.id ? { savedRecordId: planData.id } : {}),
+    });
+
+    return {
+      recognizedIntent: 'adaptive_study_coach',
+      speech: planResult.success
+        ? `I reviewed ${savedAttempts.length} saved quiz attempts, prioritized ${weakTopics.length ? weakTopics.map((item) => item.topicName).join(', ') : 'all saved topics'}, and saved your ${subject.name} exam plan.`
+        : planResult.speechText,
+      action: planResult.success ? 'adaptive_study_coach' : 'TOOL_ERROR',
+      data: planResult.data,
+      success: planResult.success,
+      toolCall: { name: 'create_study_plan', arguments: planArgs, result: planResult },
+      actionHistory: history,
+    };
+  }
 
   let tool = pending?.name || '';
   let args: Record<string, unknown> = { ...(pending?.arguments || {}) };

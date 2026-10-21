@@ -20,6 +20,7 @@ import { api } from '../api.js';
 interface ChatViewProps {
   subjects: Subject[];
   conversations: Conversation[];
+  adaptiveCoachLaunchId: number;
   onRefreshConversations: () => void;
   onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[], quizId?: string) => void;
 }
@@ -27,6 +28,7 @@ interface ChatViewProps {
 export const ChatView: React.FC<ChatViewProps> = ({
   subjects,
   conversations,
+  adaptiveCoachLaunchId,
   onRefreshConversations,
   onStartQuizWithTopic,
 }) => {
@@ -47,6 +49,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isRecording, setIsRecording] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastCoachLaunchIdRef = useRef(0);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,6 +119,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           name: response.pendingTool.name,
           params: response.pendingTool.arguments,
         } : undefined,
+        actionHistory: response.actionHistory,
       };
 
       const finalMessages = [...newMessages, assistantMessage];
@@ -145,6 +149,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (adaptiveCoachLaunchId <= lastCoachLaunchIdRef.current) return;
+    lastCoachLaunchIdRef.current = adaptiveCoachLaunchId;
+    void handleSend(`Help me prepare for my exam in ${selectedSubject}`);
+  }, [adaptiveCoachLaunchId]);
 
   const handleRegenerate = async () => {
     if (messages.length === 0 || isLoading) return;
@@ -538,6 +548,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       </div>
                     );
                   })()}
+
+                  {msg.role === 'assistant' && msg.actionHistory && msg.actionHistory.length > 0 && (
+                    <section className="mt-3 rounded-lg border border-cyan-500/25 bg-cyan-950/20 p-3" aria-label="Adaptive Coach action history">
+                      <h4 className="text-xs font-semibold text-cyan-200">Adaptive Coach actions</h4>
+                      <ol className="mt-2 space-y-2">
+                        {msg.actionHistory.map((action, index) => (
+                          <li key={`${action.tool}-${index}`} className="border-l border-cyan-700/60 pl-2.5 text-[11px]">
+                            <p className="font-semibold text-slate-200">{action.tool} · {action.status}</p>
+                            <p className="text-slate-300">{action.summary}</p>
+                            <p className="mt-0.5 text-slate-400">Used: {action.dataUsed.join('; ')}</p>
+                            {action.savedRecordId && <p className="text-emerald-300">Saved record: {action.savedRecordId}</p>}
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                  )}
 
                   {msg.role === 'assistant' && (
                     <div className="mt-3 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
