@@ -9,6 +9,7 @@ process.env.STUDYPILOT_DATA_DIR = dataDir;
 
 const db = await import('./db.js');
 const { executeAlexaTool, registerQuizForEvaluation } = await import('./alexaPlusTools.js');
+const { generateQuizWithAI } = await import('./geminiService.js');
 
 after(() => rmSync(dataDir, { recursive: true, force: true }));
 
@@ -130,4 +131,23 @@ test('repeating a completed-session update does not double-count study time', ()
   db.updateSessionStatus(plan.id, 'complete-once', 'completed');
 
   assert.equal(db.getUser().totalStudyHours, initialHours + 1);
+});
+
+test('demo quiz generation returns the requested question count and provenance', async () => {
+  const originalApiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = '';
+  try {
+    for (const numQuestions of [2, 8]) {
+      const questions = await generateQuizWithAI({
+        subjectName: 'Algorithms',
+        topicName: 'A* Search Algorithm',
+        numQuestions,
+      });
+      assert.equal(questions.length, numQuestions);
+      assert.ok(questions.every((question) => question.generationMode === 'demo'));
+    }
+  } finally {
+    if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalApiKey;
+  }
 });

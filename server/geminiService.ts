@@ -314,6 +314,83 @@ export async function generateQuizWithAI(params: {
     questionType = 'mcq',
   } = params;
 
+  const normalizeGeneratedQuiz = (value: unknown): QuizQuestion[] | null => {
+    if (!Array.isArray(value) || value.length !== numQuestions) return null;
+    const validTypes = ['mcq', 'true_false', 'short_answer'];
+    const questions: QuizQuestion[] = [];
+
+    for (const [index, question] of value.entries()) {
+      if (!question || typeof question !== 'object') return null;
+      const candidate = question as Record<string, unknown>;
+      if (typeof candidate.question !== 'string' || !candidate.question.trim() || candidate.question.length > 2000
+        || !Array.isArray(candidate.options) || candidate.options.length < 2 || candidate.options.length > 6
+        || !candidate.options.every((option) => typeof option === 'string' && option.trim().length > 0 && option.length <= 500)
+        || !Number.isInteger(candidate.correctAnswer) || (candidate.correctAnswer as number) < 0
+        || (candidate.correctAnswer as number) >= candidate.options.length
+        || typeof candidate.explanation !== 'string' || !candidate.explanation.trim() || candidate.explanation.length > 4000
+        || (candidate.type !== undefined && !validTypes.includes(String(candidate.type)))) return null;
+
+      questions.push({
+        id: typeof candidate.id === 'string' && candidate.id.length <= 100 ? candidate.id : `q_${Date.now()}_${index}`,
+        question: candidate.question,
+        type: (candidate.type || questionType) as QuizQuestion['type'],
+        options: candidate.options as string[],
+        correctAnswer: candidate.correctAnswer as number,
+        explanation: candidate.explanation,
+        commonMistakes: typeof candidate.commonMistakes === 'string' ? candidate.commonMistakes.slice(0, 1000) : undefined,
+        generationMode: 'gemini',
+      });
+    }
+    return questions;
+  };
+
+  const buildDemoQuiz = (bank: QuizQuestion[]): QuizQuestion[] => {
+    const supplementalQuestions: QuizQuestion[] = [
+      {
+        id: 'q_demo_prerequisite',
+        question: `What should you verify before applying ${topicName}?`,
+        type: 'mcq',
+        options: ['The assumptions and input constraints', 'That variable names are short', 'That every example uses identical data', 'That edge cases can be ignored'],
+        correctAnswer: 0,
+        explanation: `Correct application of ${topicName} depends on its assumptions and input constraints.`,
+      },
+      {
+        id: 'q_demo_validation',
+        question: `Which is the best way to check your understanding of ${topicName}?`,
+        type: 'mcq',
+        options: ['Apply it to a worked example and explain each decision', 'Memorize its name only', 'Skip boundary cases', 'Assume every implementation behaves identically'],
+        correctAnswer: 0,
+        explanation: `Working through an example makes the reasoning behind ${topicName} observable.`,
+      },
+      {
+        id: 'q_demo_pitfall',
+        question: `Which general study pitfall should you avoid when learning ${topicName}?`,
+        type: 'mcq',
+        options: ['Ignoring assumptions and boundary cases', 'Checking a result against an example', 'Writing down an invariant', 'Comparing alternative approaches'],
+        correctAnswer: 0,
+        explanation: 'Assumptions and boundary cases often determine whether a method is correct.',
+      },
+    ];
+    const questions = [...bank.slice(0, numQuestions)];
+    let supplementalIndex = 0;
+    while (questions.length < numQuestions) {
+      const next = supplementalQuestions[supplementalIndex % supplementalQuestions.length];
+      questions.push({
+        ...next,
+        id: `q_demo_extra_${questions.length + 1}`,
+        question: supplementalIndex >= supplementalQuestions.length
+          ? `Further practice: ${next.question}`
+          : next.question,
+      });
+      supplementalIndex++;
+    }
+    return questions.map((question, index) => ({
+      ...question,
+      id: `q_demo_${index + 1}`,
+      generationMode: 'demo',
+    }));
+  };
+
   const client = getAIClient();
   if (client) {
     try {
@@ -354,18 +431,9 @@ Output MUST be a JSON array of objects with schema:
 
       if (res.text) {
         const parsed = JSON.parse(res.text);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((q, idx) => ({
-            id: q.id || `q_${Date.now()}_${idx}`,
-            question: q.question,
-            type: q.type || questionType,
-            options: q.options || ['True', 'False'],
-            correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0,
-            explanation: q.explanation || 'Verified correct response.',
-            commonMistakes: q.commonMistakes,
-            generationMode: 'gemini' as const,
-          }));
-        }
+        const validated = normalizeGeneratedQuiz(parsed);
+        if (validated) return validated;
+        throw new Error('Gemini returned an invalid quiz payload');
       }
     } catch (err) {
       console.warn('Gemini quiz generation error, falling back to curated question bank:', err);
@@ -374,7 +442,7 @@ Output MUST be a JSON array of objects with schema:
 
   // High quality curated question bank fallback
   if (topicName.toLowerCase().includes('a*') || topicName.toLowerCase().includes('astar')) {
-    return [
+    return buildDemoQuiz([
       {
         id: `q_astar_1`,
         question: 'In the A* search formula f(n) = g(n) + h(n), what does h(n) represent?',
@@ -445,11 +513,11 @@ Output MUST be a JSON array of objects with schema:
         explanation: 'In a 4-directional grid, Manhattan distance matches the minimum possible steps with no obstacles, making it admissible.',
         commonMistakes: 'Using squared Euclidean distance which vastly overestimates path lengths.',
       },
-    ].map((question) => ({ ...question, type: question.type as QuizQuestion['type'], generationMode: 'demo' as const }));
+    ]);
   }
 
   // Generic robust topic question generator
-  return [
+  return buildDemoQuiz([
     {
       id: `q_gen_1`,
       question: `What is the primary design purpose of ${topicName} in ${subjectName}?`,
@@ -489,7 +557,7 @@ Output MUST be a JSON array of objects with schema:
       correctAnswer: 0,
       explanation: `Boundary conditions, empty inputs, and termination criteria are the leading causes of logic faults.`,
     },
-  ].map((question) => ({ ...question, type: question.type as QuizQuestion['type'], generationMode: 'demo' as const }));
+  ]);
 }
 
 export async function summarizeNotesWithAI(params: {
