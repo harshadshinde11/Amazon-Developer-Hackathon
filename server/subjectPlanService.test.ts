@@ -9,6 +9,7 @@ process.env.STUDYPILOT_DATA_DIR = dataDir;
 
 const db = await import('./db.js');
 const { createSubjectStudyPlan } = await import('./subjectPlanService.js');
+const { executeAlexaTool } = await import('./alexaPlusTools.js');
 
 after(() => rmSync(dataDir, { recursive: true, force: true }));
 
@@ -96,6 +97,12 @@ test('combined subject plans preserve subject IDs and fit alongside pending sess
       assert.ok(sorted[index - 1].end <= sorted[index].start, 'Scheduled sessions must not overlap');
     }
   }
+
+  db.updateSubject(dbms.subject.id, { name: 'Database Systems' });
+  const renamedPlan = db.getStudyPlans().find((item) => item.id === plan.id);
+  assert.match(renamedPlan?.subjectName || '', /Database Systems/);
+  assert.ok(renamedPlan?.sessions.some((session) => session.subjectId === dbms.subject.id && session.subjectName === 'Database Systems'));
+  assert.equal(db.deleteSubject(dbms.subject.id), false);
 });
 
 test('plan generation rejects invalid subject IDs and empty custom subjects', async () => {
@@ -116,6 +123,35 @@ test('plan generation rejects invalid subject IDs and empty custom subjects', as
     /Add topics or course notes/
   );
   assert.equal(db.getStudyPlans().length, 0);
+});
+
+test('create_subject_study_plan agent tool uses the validated subject scheduler', async () => {
+  db.resetToEmpty();
+  const subject = db.createSubject({
+    userId: db.getUser().id,
+    name: 'Operating Systems',
+    code: 'OS',
+    color: '#f97316',
+    icon: 'MonitorCog',
+    examinationDate: dateOffset(7),
+  });
+  const topic = db.createTopic({
+    subjectId: subject.id,
+    name: 'Memory management',
+    difficulty: 'intermediate',
+    confidenceLevel: 2,
+    completionStatus: 'not_started',
+  });
+
+  const result = await executeAlexaTool('create_subject_study_plan', { subject_id: subject.id, hours_per_day: 1 });
+  assert.equal(result.success, true);
+  assert.equal((result.data as { subjectId: string }).subjectId, subject.id);
+  assert.ok((result.data as { sessions: Array<{ subjectId?: string; topicName: string }> }).sessions
+    .every((session) => session.subjectId === subject.id && session.topicName === topic.name));
+
+  const invalid = await executeAlexaTool('create_subject_study_plan', { subject_id: 'unknown-subject' });
+  assert.equal(invalid.success, false);
+  assert.equal(db.getStudyPlans().length, 1);
 });
 
 test('legacy study history is migrated to its subject without losing the records', () => {

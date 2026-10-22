@@ -54,6 +54,12 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
+function isValidDateString(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 // -------------------------------------------------------------
 // 1. User & Settings API
 // -------------------------------------------------------------
@@ -82,7 +88,7 @@ app.post('/api/subjects', (req: Request, res: Response) => {
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) {
     return res.status(400).json({ error: 'Subject name is required and must be 80 characters or fewer' });
   }
-  if (examinationDate !== undefined && (typeof examinationDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(examinationDate) || Number.isNaN(Date.parse(`${examinationDate}T00:00:00Z`)))) {
+  if (examinationDate !== undefined && !isValidDateString(examinationDate)) {
     return res.status(400).json({ error: 'Examination date must use YYYY-MM-DD format' });
   }
   if (starterTopics !== undefined && (!Array.isArray(starterTopics) || starterTopics.length > 20 || !starterTopics.every((topic) => typeof topic === 'string' && topic.trim().length > 0 && topic.trim().length <= 100))) {
@@ -127,7 +133,7 @@ app.put('/api/subjects/:id', (req: Request, res: Response) => {
     partial.code = req.body.code.trim();
   }
   if (req.body.examinationDate !== undefined) {
-    if (req.body.examinationDate !== '' && (typeof req.body.examinationDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(req.body.examinationDate) || Number.isNaN(Date.parse(`${req.body.examinationDate}T00:00:00Z`)))) {
+    if (req.body.examinationDate !== '' && !isValidDateString(req.body.examinationDate)) {
       return res.status(400).json({ error: 'Examination date must use YYYY-MM-DD format' });
     }
     partial.examinationDate = req.body.examinationDate || undefined;
@@ -421,6 +427,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
       messages,
       subjectName: subject?.name,
       topicName: topic?.name,
+      topicNotes: topic?.notes,
       mode,
       difficulty,
     });
@@ -463,6 +470,7 @@ app.post('/api/ai/assistant', async (req: Request, res: Response) => {
     const result = await routeStudyAssistantRequest(message, {
       subjectName: selectedSubject?.name,
       topicName: selectedTopic?.name,
+      topicNotes: selectedTopic?.notes,
       mode,
       difficulty,
       pendingTool,
@@ -526,6 +534,7 @@ app.post('/api/ai/quiz', async (req: Request, res: Response) => {
     const questions = await generateQuizWithAI({
       subjectName: savedSubject?.name || 'General Studies',
       topicName: topic.name,
+      topicNotes: topic.notes,
       difficulty,
       numQuestions,
       questionType,

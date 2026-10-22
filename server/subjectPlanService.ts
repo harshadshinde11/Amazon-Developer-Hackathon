@@ -30,7 +30,9 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const toDateString = (date: Date) => date.toISOString().slice(0, 10);
 
 function isValidDate(value: string): boolean {
-  return DATE_PATTERN.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  if (!DATE_PATTERN.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function toMinutes(time: string): number | undefined {
@@ -97,7 +99,10 @@ export async function createSubjectStudyPlan(input: {
   const validSubjects = selectedSubjects as Subject[];
   const today = toDateString(new Date());
   const deadlines = new Map(validSubjects.map((subject) => {
-    const date = subject.examinationDate && isValidDate(subject.examinationDate) && subject.examinationDate > today
+    const date = validSubjects.length > 1
+      && subject.examinationDate
+      && isValidDate(subject.examinationDate)
+      && subject.examinationDate > today
       ? subject.examinationDate
       : input.examDate as string;
     if (date <= today) throw new Error(`${subject.name} needs an examination date after today to schedule study sessions.`);
@@ -139,9 +144,10 @@ export async function createSubjectStudyPlan(input: {
         ? topicAttempts.reduce((sum, attempt) => sum + attempt.percentage, 0) / topicAttempts.length
         : undefined;
       const isWeak = averageScore !== undefined && averageScore < 60;
-      const generatedSession = generated.sessions.find((session) =>
-        session.topicName.trim().toLowerCase() === topic.name.trim().toLowerCase()
-      );
+      const generatedSession = Array.isArray(generated.sessions)
+        ? generated.sessions.find((session) => typeof session?.topicName === 'string'
+          && session.topicName.trim().toLowerCase() === topic.name.trim().toLowerCase())
+        : undefined;
       const difficultyWeight = topic.difficulty === 'advanced' ? 2 : topic.difficulty === 'beginner' ? 0 : 1;
       tasks.push({
         subject,
@@ -154,9 +160,15 @@ export async function createSubjectStudyPlan(input: {
           + (averageScore === undefined ? 0 : 100 - averageScore)
           + (5 - topic.confidenceLevel) * 10
           + difficultyWeight,
-        learningObjective: generatedSession?.learningObjective || `Build understanding and practice ${topic.name}.`,
-        recommendedActivity: generatedSession?.recommendedActivity || `Review your notes and work through examples for ${topic.name}.`,
-        revisionTask: generatedSession?.revisionTask || `Check your understanding of ${topic.name} with practice questions.`,
+        learningObjective: typeof generatedSession?.learningObjective === 'string'
+          ? generatedSession.learningObjective
+          : `Build understanding and practice ${topic.name}.`,
+        recommendedActivity: typeof generatedSession?.recommendedActivity === 'string'
+          ? generatedSession.recommendedActivity
+          : `Review your notes and work through examples for ${topic.name}.`,
+        revisionTask: typeof generatedSession?.revisionTask === 'string'
+          ? generatedSession.revisionTask
+          : `Check your understanding of ${topic.name} with practice questions.`,
       });
     }
   }

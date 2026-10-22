@@ -411,9 +411,22 @@ export function updateSubject(subjectId: string, partial: Partial<Subject>): Sub
   db.subjects[subjectIndex] = { ...db.subjects[subjectIndex], ...partial, name: nextName };
   const updatedSubject = db.subjects[subjectIndex];
   for (const plan of db.studyPlans) {
-    if (plan.subjectId !== subjectId) continue;
-    plan.subjectName = updatedSubject.name;
-    for (const session of plan.sessions) session.subjectName = updatedSubject.name;
+    const belongsToPlan = plan.subjectId === subjectId || plan.subjectIds?.includes(subjectId);
+    if (!belongsToPlan) continue;
+    if (plan.subjectIds && plan.subjectIds.length > 1) {
+      plan.subjectName = `Combined: ${plan.subjectIds
+        .map((id) => db.subjects.find((subject) => subject.id === id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .join(', ')}`;
+    } else {
+      plan.subjectName = updatedSubject.name;
+    }
+    for (const session of plan.sessions) {
+      if (session.subjectId === subjectId || (!session.subjectId && plan.subjectId === subjectId)) {
+        session.subjectId = subjectId;
+        session.subjectName = updatedSubject.name;
+      }
+    }
   }
   for (const attempt of db.quizAttempts) {
     if (attempt.subjectId === subjectId) attempt.subjectName = updatedSubject.name;
@@ -437,7 +450,9 @@ export function deleteSubject(subjectId: string): boolean {
   if (!db.subjects.some((subject) => subject.id === subjectId)) return false;
   const topicIds = new Set(db.topics.filter((topic) => topic.subjectId === subjectId).map((topic) => topic.id));
   const hasHistory = db.quizAttempts.some((attempt) => attempt.subjectId === subjectId || topicIds.has(attempt.topicId))
-    || db.studyPlans.some((plan) => plan.subjectId === subjectId)
+    || db.studyPlans.some((plan) => plan.subjectId === subjectId
+      || plan.subjectIds?.includes(subjectId)
+      || plan.sessions.some((session) => session.subjectId === subjectId))
     || db.conversations.some((conversation) => conversation.subjectId === subjectId);
   if (hasHistory) return false;
   db.subjects = db.subjects.filter((s) => s.id !== subjectId);

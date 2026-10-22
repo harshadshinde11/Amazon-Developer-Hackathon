@@ -101,6 +101,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
           name: newSubName.trim(),
           code: newSubCode.trim() || newSubName.slice(0, 4).toUpperCase(),
           color: newSubColor,
+          icon: catalogEntry?.icon,
           examinationDate: newSubExamDate || undefined,
           starterTopics: catalogEntry?.starterTopics,
         });
@@ -244,7 +245,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shadow-md shadow-purple-600/20 transition-all"
         >
           <Plus size={15} />
-          <span>+ Add New Subject</span>
+          <span>+ Add Subject</span>
         </button>
       </div>
 
@@ -268,6 +269,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
                 </button>
                 {!subject.archivedAt && <button type="button" title={`Edit ${subject.name}`} onClick={() => startEditingSubject(subject)} className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"><Pencil size={13} /></button>}
                 <button type="button" title={subject.archivedAt ? `Restore ${subject.name}` : `Archive ${subject.name}`} onClick={() => void handleArchiveSubject(subject)} className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white">{subject.archivedAt ? <RotateCcw size={13} /> : <Archive size={13} />}</button>
+                <button type="button" aria-label={`Delete ${subject.name}`} title={`Delete ${subject.name}`} onClick={() => void handleDeleteSubject(subject.id)} className="rounded p-1.5 text-slate-500 hover:bg-slate-800 hover:text-rose-400"><Trash2 size={13} /></button>
               </div>
             ))}
           </div>
@@ -447,8 +449,8 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
       {/* Add Subject Modal */}
       {showSubjectModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-3">{editingSubject ? 'Edit Subject' : 'Add Subject'}</h3>
+          <div role="dialog" aria-modal="true" aria-labelledby="subject-modal-title" className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl">
+            <h3 id="subject-modal-title" className="text-base font-bold text-white mb-3">{editingSubject ? 'Edit Subject' : 'Add Subject'}</h3>
             <form onSubmit={handleCreateSubject} className="space-y-3">
               {!editingSubject && (
                 <div>

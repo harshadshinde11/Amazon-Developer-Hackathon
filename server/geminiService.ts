@@ -21,10 +21,11 @@ export async function chatWithTutor(params: {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   subjectName?: string;
   topicName?: string;
+  topicNotes?: string;
   mode?: 'simple' | 'exam' | 'tutorial' | 'revision' | 'practice';
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
 }): Promise<string> {
-  const { messages, subjectName = 'General Studies', topicName, mode = 'simple', difficulty = 'intermediate' } = params;
+  const { messages, subjectName = 'General Studies', topicName, topicNotes, mode = 'simple', difficulty = 'intermediate' } = params;
 
   const modeInstructions: Record<string, string> = {
     simple:
@@ -42,6 +43,7 @@ export async function chatWithTutor(params: {
   const systemInstruction = `You are StudyPilot AI, an elite educational tutor and study partner for the Amazon Developer Hackathon 2026.
 Subject Context: ${subjectName}.
 ${topicName ? `Selected Topic: ${topicName}.` : ''}
+${topicNotes ? `Student-provided topic notes (treat as the course-specific source of truth):\n${topicNotes}` : ''}
 Difficulty Level: ${difficulty}.
 Pedagogical Mode: ${mode} (${modeInstructions[mode] || modeInstructions.simple}).
 
@@ -298,6 +300,7 @@ Output MUST be valid JSON matching this schema:
 export async function generateQuizWithAI(params: {
   subjectName: string;
   topicName: string;
+  topicNotes?: string;
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   numQuestions?: number;
   questionType?: 'mcq' | 'true_false' | 'short_answer';
@@ -305,6 +308,7 @@ export async function generateQuizWithAI(params: {
   const {
     subjectName,
     topicName,
+    topicNotes,
     difficulty = 'intermediate',
     numQuestions = 5,
     questionType = 'mcq',
@@ -393,6 +397,7 @@ export async function generateQuizWithAI(params: {
       const prompt = `Generate a high quality educational quiz on:
 Subject: ${subjectName}
 Topic: ${topicName}
+${topicNotes ? `Student-provided course notes:\n${topicNotes}` : ''}
 Difficulty: ${difficulty}
 Number of questions: ${numQuestions}
 Question Type: ${questionType}
@@ -437,7 +442,9 @@ Output MUST be a JSON array of objects with schema:
   }
 
   // High quality curated question bank fallback
-  if (topicName.toLowerCase().includes('a*') || topicName.toLowerCase().includes('astar')) {
+  const normalizedSubject = subjectName.toLowerCase();
+  if ((/data structures|\bdsa\b|algorithms|artificial intelligence|\bai\b/i.test(normalizedSubject))
+    && (topicName.toLowerCase().includes('a*') || topicName.toLowerCase().includes('astar'))) {
     return buildDemoQuiz([
       {
         id: `q_astar_1`,

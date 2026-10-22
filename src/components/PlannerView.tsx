@@ -38,16 +38,21 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
     const initialSubject = activeSubjectId || subjects.find((subject) => !subject.archivedAt)?.id;
     return initialSubject ? [initialSubject] : [];
   });
-  const [examDate, setExamDate] = useState<string>(
-    new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]
-  );
+  const [examDate, setExamDate] = useState<string>(() => {
+    const activeSubject = subjects.find((subject) => subject.id === activeSubjectId);
+    return activeSubject?.examinationDate || new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0];
+  });
   const [hoursPerDay, setHoursPerDay] = useState<number>(2);
 
   const selectedSubjects = subjects.filter((subject) => selectedSubjectIds.includes(subject.id) && !subject.archivedAt);
 
   React.useEffect(() => {
-    if (activeSubjectId) setSelectedSubjectIds([activeSubjectId]);
-  }, [activeSubjectId]);
+    if (activeSubjectId) {
+      setSelectedSubjectIds([activeSubjectId]);
+      const activeSubject = subjects.find((subject) => subject.id === activeSubjectId);
+      if (activeSubject?.examinationDate) setExamDate(activeSubject.examinationDate);
+    }
+  }, [activeSubjectId, subjects]);
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,8 +276,8 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
       {/* Generate Plan Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl">
-            <h3 className="text-base font-bold text-white flex items-center gap-2 mb-1">
+          <div role="dialog" aria-modal="true" aria-labelledby="plan-modal-title" className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl">
+            <h3 id="plan-modal-title" className="text-base font-bold text-white flex items-center gap-2 mb-1">
               <Sparkles size={18} className="text-purple-400" />
               <span>Generate AI Study Plan</span>
             </h3>

@@ -19,6 +19,7 @@ import {
   generateQuizWithAI,
   generateStudyPlanWithAI,
 } from './geminiService.js';
+import { createSubjectStudyPlan } from './subjectPlanService.js';
 import { AgentActionRecord, AlexaToolManifest, QuizQuestion } from '../src/types.js';
 
 interface ActiveQuizSession {
@@ -234,10 +235,38 @@ export async function executeAlexaTool(
 
   const scopedAliases: Record<string, string> = {
     get_subject_progress: 'get_student_progress',
-    create_subject_study_plan: 'create_study_plan',
     generate_subject_quiz: 'generate_quiz',
     recommend_subject_revision: 'recommend_revision',
   };
+  if (toolName === 'create_subject_study_plan') {
+    const subjectId = typeof args.subject_id === 'string' ? args.subject_id : '';
+    const subject = getSubjects().find((item) => item.id === subjectId && !item.archivedAt);
+    if (!subject) return failure(toolName, 'Choose a saved, active subject before creating a plan.', 'Invalid subject_id', timestamp);
+    if (typeof args.subject_name === 'string' && args.subject_name.trim().toLowerCase() !== subject.name.toLowerCase()) {
+      return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+    }
+    try {
+      const plan = await createSubjectStudyPlan({
+        subjectIds: [subject.id],
+        examDate: args.exam_date ?? subject.examinationDate,
+        hoursPerDay: args.hours_per_day ?? getUser().preferredHoursPerDay,
+      });
+      return {
+        success: true,
+        tool: toolName,
+        speechText: `Created a saved subject-specific plan for ${subject.name} with ${plan.sessions.length} sessions.`,
+        data: plan,
+        timestamp,
+      };
+    } catch (error) {
+      return failure(
+        toolName,
+        error instanceof Error ? error.message : 'Could not create the subject study plan.',
+        error instanceof Error ? error.message : 'Study plan generation failed',
+        timestamp
+      );
+    }
+  }
   const aliasedTool = scopedAliases[toolName];
   if (aliasedTool) {
     const subjectId = typeof args.subject_id === 'string' ? args.subject_id : '';
@@ -458,6 +487,7 @@ export async function executeAlexaTool(
           messages: [{ role: 'user', content: `Explain ${topic?.name || topicName}` }],
           subjectName: subject?.name,
           topicName: topic?.name || topicName,
+          topicNotes: topic?.notes,
           mode,
           difficulty,
         });
@@ -516,6 +546,7 @@ export async function executeAlexaTool(
         const questions = await generateQuizWithAI({
           subjectName: subject?.name || 'General Studies',
           topicName: topic.name,
+          topicNotes: topic.notes,
           difficulty,
           numQuestions,
         });
@@ -826,6 +857,7 @@ export async function routeStudyAssistantRequest(
     difficulty?: 'beginner' | 'intermediate' | 'advanced';
     mode?: 'simple' | 'exam' | 'tutorial' | 'revision' | 'practice';
     topicName?: string;
+    topicNotes?: string;
     pendingTool?: { name: string; arguments: Record<string, unknown> };
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   } = {}
@@ -1136,6 +1168,7 @@ export async function routeStudyAssistantRequest(
     subjectName: context.topicName
       ? `${context.subjectName || 'General Studies'} (current topic: ${context.topicName})`
       : context.subjectName,
+    topicNotes: topic?.notes || context.topicNotes,
     mode: context.mode,
     difficulty: context.difficulty,
   });
