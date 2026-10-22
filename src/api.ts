@@ -228,7 +228,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Tutor request failed');
+    return body;
   },
   async runAssistant(params: {
     message: string;
@@ -292,10 +294,13 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    return res.json();
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Quiz generation failed');
+    return body;
   },
   async summarizeNotes(params: {
     notesText: string;
+    subjectId?: string;
     subjectName?: string;
   }): Promise<{
     summary: string;

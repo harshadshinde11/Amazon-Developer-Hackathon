@@ -219,8 +219,6 @@ export default function App() {
                 plans={plans}
                 subjects={subjects}
                 activeSubjectId={activeSubjectId}
-                onSelectSubject={(subjectId) => { void handleSelectActiveSubject(subjectId); }}
-                topicAnalytics={analytics?.topicAnalytics || []}
                 onRefreshPlans={refreshAllData}
                 onCompleteSession={handleCompleteSession}
               />

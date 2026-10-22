@@ -58,6 +58,15 @@
    - Manage subjects, course codes, and exam target dates.
    - Topic confidence rating stars (1–5).
    - Notes analyzer: paste lecture notes or upload text files to generate AI summaries, exam takeaways, and practice questions.
+   - Search and add predefined or custom subjects; rename, archive, restore, and delete subjects with duplicate-name protection.
+   - DSA remains the initial default, while every subject keeps its own topics, plans, quiz history, mastery, and tutor context.
+
+8. **Multi-subject learning and planning**
+   - Switch the active subject from the navigation bar; the tutor, topic list, quiz generator, and subject-specific recommendations follow that selection.
+   - Create a plan for one subject or combine several subjects for exam preparation. The scheduler uses saved confidence and quiz results, fits sessions around existing pending sessions, and enforces the daily study-time limit.
+   - The dashboard combines all subjects, shows subject-by-subject mastery and upcoming tasks, and offers resume actions. Analytics can be filtered to one subject or all subjects.
+   - Custom subjects start without an assumed syllabus. Add course topics or provide notes before generating targeted plans and practice.
+   - Existing JSON records are migrated in place to associate legacy plans, sessions, quiz attempts, and conversations with their saved subject without deleting history.
 
 ---
 
@@ -74,13 +83,16 @@ StudyPilot AI includes an **Alexa+-inspired in-app simulation** for the Amazon D
 | `evaluate_quiz` | server-issued `quiz_id`, selected option indexes, optional `time_spent_seconds` | Evaluates against the server-held answer key and persists the attempt once |
 | `get_upcoming_tasks` | optional `days_ahead` (1–90, default 7) | Returns pending sessions from saved study plans within the date window |
 | `recommend_revision` | none | Uses persisted quiz scores, topic mastery, study sessions, and examination dates |
+| `list_subjects` / `create_subject` | optional student-provided topics | Lists or creates saved subjects; custom topics are not presented as an official syllabus |
+| `get_subject_progress` / `recommend_subject_revision` | required `subject_id` | Returns saved performance and recommendations for one validated subject |
+| `create_subject_study_plan` / `generate_subject_quiz` | required `subject_id` | Creates a targeted plan or quiz using that subject's saved topics and progress |
 
 ### Tool Architecture
 
 - `src/components/ChatView.tsx` and `src/components/VoiceAssistantView.tsx` send requests to the shared backend router.
 - `server.ts` exposes `/api/ai/assistant`, `/api/ai/voice-command`, and `/api/alexa-plus/invoke`.
 - `server/alexaPlusTools.ts` identifies intents, requests missing details, validates arguments, invokes tools, and returns the backend result plus concise speech text. Quiz Center submissions use `evaluate_quiz`, so the server calculates and saves the result used by recommendations.
-- Tools read and write through `server/db.ts` to `data/studypilot_db.json`. The default demo dataset is initialized when the file is absent; it is not a source of new quiz scores.
+- Tools read and write through `server/db.ts` to `data/studypilot_db.json`. The default demo dataset is initialized when the file is absent; legacy records are associated with their subject during migration, and the demo dataset is not a source of new quiz scores.
 - Generated questions are passed to the existing Quiz Center. Only submitted answers create a persisted quiz attempt, which then feeds revision recommendations.
 - Browser speech recognition and speech synthesis are optional browser capabilities. Typed input remains available.
 
@@ -101,7 +113,7 @@ curl -X POST http://localhost:3000/api/alexa-plus/invoke \
 1. Install Node.js 20 or later, open this folder in VS Code, and run `npm install` in its terminal.
 2. Copy `.env.example` to `.env` and configure `GEMINI_API_KEY` for Gemini-generated explanations, plans, and questions. The key is read by the backend only. Without a usable key, deterministic demo fallbacks are used.
 3. Start frontend and backend together with `npm run dev`, then open `http://localhost:3000`.
-4. Run `npm run lint`, `npm test`, and `npm run build` for verification.
+4. Run `npm run lint`, `npm test`, and `npm run build` for verification. The tests include subject-isolation, legacy-history migration, and daily schedule constraints.
 
 ### Windows / VS Code Setup
 
@@ -145,4 +157,3 @@ The simulation does not connect to Amazon Alexa+, Echo devices, an Alexa+ runtim
    npm run dev
    ```
    Open `http://localhost:3000` in your browser.
-

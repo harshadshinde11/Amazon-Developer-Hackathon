@@ -9,7 +9,7 @@ process.env.STUDYPILOT_DATA_DIR = dataDir;
 
 const db = await import('./db.js');
 const { executeAlexaTool, registerQuizForEvaluation, routeStudyAssistantRequest } = await import('./alexaPlusTools.js');
-const { generateQuizWithAI } = await import('./geminiService.js');
+const { chatWithTutor, generateQuizWithAI } = await import('./geminiService.js');
 
 after(() => rmSync(dataDir, { recursive: true, force: true }));
 
@@ -144,9 +144,65 @@ test('demo quiz generation returns the requested question count and provenance',
         topicName: 'A* Search Algorithm',
         numQuestions,
       });
+
       assert.equal(questions.length, numQuestions);
       assert.ok(questions.every((question) => question.generationMode === 'demo'));
     }
+  } finally {
+    if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalApiKey;
+  }
+});
+
+test('subject-scoped quiz tools reject mismatched IDs and isolate duplicate topic names', async () => {
+  db.resetToEmpty();
+  const first = createSubjectAndTopic();
+  const secondSubject = db.createSubject({
+    userId: db.getUser().id,
+    name: 'Test Databases',
+    code: 'TDB',
+    color: '#008c8c',
+    icon: 'Database',
+  });
+
+  db.createTopic({
+    subjectId: secondSubject.id,
+    name: first.topic.name,
+    difficulty: 'beginner',
+    confidenceLevel: 4,
+    completionStatus: 'not_started',
+  });
+
+  const mismatched = await executeAlexaTool('generate_subject_quiz', {
+    subject_id: first.subject.id,
+    subject_name: secondSubject.name,
+    topic_name: first.topic.name,
+  });
+  assert.equal(mismatched.success, false);
+  assert.match(mismatched.error || '', /Mismatched subject/);
+
+  const generated = await executeAlexaTool('generate_subject_quiz', {
+    subject_id: secondSubject.id,
+    topic_name: first.topic.name,
+    num_questions: 1,
+  });
+  assert.equal(generated.success, true);
+  assert.equal((generated.data as { subjectId: string }).subjectId, secondSubject.id);
+  assert.equal(db.getQuizAttempts(undefined, first.subject.id).length, 0);
+  assert.equal(db.getQuizAttempts(undefined, secondSubject.id).length, 0);
+});
+
+test('tutor demo fallback does not answer non-DSA questions with hard-coded DSA content', async () => {
+  const originalApiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = '';
+  try {
+    const response = await chatWithTutor({
+      messages: [{ role: 'user', content: 'Explain A* Search Algorithm' }],
+      subjectName: 'Database Management Systems',
+      topicName: 'Transactions',
+    });
+    assert.match(response, /Database Management Systems/);
+    assert.doesNotMatch(response, /The A\* Search Algorithm Explained/);
   } finally {
     if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalApiKey;

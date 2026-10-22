@@ -12,11 +12,12 @@ export const subjectsApi = {
     color?: string;
     icon?: string;
     examinationDate?: string;
+    starterTopics?: string[];
   }): Promise<Subject> {
-    return request<Subject[]>('/api/subjects', {
+    return request<Subject>('/api/subjects', {
       method: 'POST',
       body: JSON.stringify(data),
-    }) as any;
+    });
   },
 
   deleteSubject(id: string): Promise<{ success: boolean }> {

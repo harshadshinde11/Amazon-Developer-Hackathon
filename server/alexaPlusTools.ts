@@ -128,6 +128,7 @@ export const ALEXA_PLUS_TOOLS_MANIFEST: AlexaToolManifest[] = [
       type: 'object',
       properties: {
         topic_name: { type: 'string', description: 'Name of the topic or concept to explain' },
+        subject_id: { type: 'string', description: 'Optional saved subject ID to constrain the explanation' },
         difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'], description: 'Student difficulty level' },
         mode: { type: 'string', enum: ['simple', 'exam', 'tutorial', 'revision', 'practice'], description: 'Pedagogical mode' },
       },
@@ -242,6 +243,9 @@ export async function executeAlexaTool(
     const subjectId = typeof args.subject_id === 'string' ? args.subject_id : '';
     const subject = getSubjects().find((item) => item.id === subjectId && !item.archivedAt);
     if (!subject) return failure(toolName, 'Choose a saved, active subject before running this tool.', 'Invalid subject_id', timestamp);
+    if (typeof args.subject_name === 'string' && args.subject_name.trim().toLowerCase() !== subject.name.toLowerCase()) {
+      return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+    }
     const result = await executeAlexaTool(aliasedTool, { ...args, subject_id: subject.id, subject_name: subject.name });
     return { ...result, tool: toolName };
   }
@@ -391,6 +395,7 @@ export async function executeAlexaTool(
           userId: 'user_alexa_01',
           title: generated.title,
           subjectId: existingSubject.id,
+          subjectIds: [existingSubject.id],
           subjectName,
           examDate,
           ...(coachRequestKey ? { coachRequestKey } : {}),
@@ -398,6 +403,8 @@ export async function executeAlexaTool(
           priorityRationale: generated.priorityRationale,
           sessions: generated.sessions.map((s, idx) => ({
             ...s,
+            subjectId: existingSubject.id,
+            subjectName: existingSubject.name,
             id: `sess_tool_${Date.now()}_${idx}`,
             studyPlanId: '',
           })),
@@ -417,6 +424,26 @@ export async function executeAlexaTool(
         if (!topicName) {
           return failure(toolName, 'What topic would you like me to explain?', 'Missing required argument: topic_name', timestamp);
         }
+        const subjectId = typeof args.subject_id === 'string' ? args.subject_id : undefined;
+        const subjectName = typeof args.subject_name === 'string' ? args.subject_name.trim() : '';
+        const subjectById = subjectId
+          ? getSubjects().find((subject) => subject.id === subjectId && !subject.archivedAt)
+          : undefined;
+        const namedSubject = subjectName ? findSubject(subjectName) : undefined;
+        if (subjectId && !subjectById) {
+          return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
+        }
+        if (subjectName && !namedSubject) {
+          return failure(toolName, `I couldn't find ${subjectName} in your saved subjects.`, 'Unknown subject_name', timestamp);
+        }
+        if (subjectById && namedSubject && subjectById.id !== namedSubject.id) {
+          return failure(toolName, 'The supplied subject ID and name refer to different subjects.', 'Mismatched subject ID and name', timestamp);
+        }
+        const subject = subjectById || namedSubject;
+        const topic = subject ? findTopic(topicName, subject.id) : undefined;
+        if (subject && !topic) {
+          return failure(toolName, `Add or select a saved topic in ${subject.name} before asking for a subject-scoped explanation.`, 'Unknown topic_name', timestamp);
+        }
 
         const difficulty = args.difficulty || 'intermediate';
         const mode = args.mode || 'simple';
@@ -428,7 +455,9 @@ export async function executeAlexaTool(
         }
 
         const explanation = await chatWithTutor({
-          messages: [{ role: 'user', content: `Explain ${topicName}` }],
+          messages: [{ role: 'user', content: `Explain ${topic?.name || topicName}` }],
+          subjectName: subject?.name,
+          topicName: topic?.name || topicName,
           mode,
           difficulty,
         });
@@ -539,7 +568,9 @@ export async function executeAlexaTool(
         const subject = subjectById || namedSubject;
         const scopedTopics = subject ? topics.filter((topic) => topic.subjectId === subject.id) : topics;
         const scopedAttempts = subject ? attempts.filter((attempt) => attempt.subjectId === subject.id) : attempts;
-        const scopedSessions = subject ? allSessions.filter((session) => session.subjectName === subject.name) : allSessions;
+        const scopedSessions = subject
+          ? allSessions.filter((session) => session.subjectId === subject.id || session.subjectName === subject.name)
+          : allSessions;
         const analytics = computeTopicAnalytics(scopedTopics, subjects, scopedAttempts, scopedSessions);
         const strong = analytics.filter((a) => a.status === 'Strong').length;
         const developing = analytics.filter((a) => a.status === 'Developing').length;
@@ -648,9 +679,12 @@ export async function executeAlexaTool(
           return failure(toolName, 'Choose a saved, active subject.', 'Invalid subject_id', timestamp);
         }
         const tasks = getStudyPlans()
-          .filter((plan) => !subjectId || plan.subjectId === subjectId)
+          .filter((plan) => !subjectId || plan.subjectId === subjectId || plan.subjectIds?.includes(subjectId))
           .flatMap((plan) => plan.sessions
-            .filter((session) => session.status === 'pending' && session.scheduledDate >= startDate && session.scheduledDate <= endDate)
+            .filter((session) => (!subjectId || session.subjectId === subjectId)
+              && session.status === 'pending'
+              && session.scheduledDate >= startDate
+              && session.scheduledDate <= endDate)
             .map((session) => ({ ...session, planId: plan.id, planTitle: plan.title })))
           .sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate) || a.startTime.localeCompare(b.startTime));
 
@@ -680,8 +714,11 @@ export async function executeAlexaTool(
         const subjects = scopedSubject ? [scopedSubject] : allSubjects;
         const topics = getTopics(scopedSubject?.id);
         const attempts = getQuizAttempts(undefined, scopedSubject?.id);
-        const plans = getStudyPlans().filter((plan) => !scopedSubject || plan.subjectId === scopedSubject.id);
-        const allSessions = plans.flatMap((p) => p.sessions);
+        const plans = getStudyPlans().filter((plan) => !scopedSubject
+          || plan.subjectId === scopedSubject.id
+          || plan.subjectIds?.includes(scopedSubject.id));
+        const allSessions = plans.flatMap((plan) => plan.sessions)
+          .filter((session) => !scopedSubject || session.subjectId === scopedSubject.id || session.subjectName === scopedSubject.name);
 
         const analytics = computeTopicAnalytics(topics, subjects, attempts, allSessions);
         const recommendations = generateAdaptiveRecommendations(analytics, subjects, allSessions);
@@ -1050,7 +1087,13 @@ export async function routeStudyAssistantRequest(
     const topicName = (genericTopic ? context.topicName : cleanedTopic)
       || (pending?.name === 'explain_topic' ? text.replace(/[?.!]+$/, '').trim() : context.topicName || '');
     if (!topicName) clarification = 'What topic would you like me to explain?';
-    else args = { ...args, topic_name: topicName, difficulty: context.difficulty || getUser().difficultyPreference, mode: context.mode || 'simple' };
+    else args = {
+      ...args,
+      ...(subject ? { subject_id: subject.id, subject_name: subject.name } : {}),
+      topic_name: topicName,
+      difficulty: context.difficulty || getUser().difficultyPreference,
+      mode: context.mode || 'simple',
+    };
   } else if (tool === 'recommend_revision' || /\b(what should i study|what to study|study today|revise|revision|weak|weakest|recommend)\b/.test(normalized)) {
     tool = 'recommend_revision';
     if (subject) args = { ...args, subject_id: subject.id, subject_name: subject.name };

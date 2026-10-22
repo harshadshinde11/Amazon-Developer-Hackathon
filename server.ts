@@ -225,7 +225,7 @@ app.delete('/api/topics/:id', (req: Request, res: Response) => {
 app.get(['/api/plans', '/api/study-plans'], (_req: Request, res: Response) => {
   const subjectId = _req.query.subjectId as string | undefined;
   if (subjectId && !getSubjects().some((subject) => subject.id === subjectId)) return res.status(404).json({ error: 'Subject not found' });
-  res.json(getStudyPlans().filter((plan) => !subjectId || plan.subjectId === subjectId));
+  res.json(getStudyPlans().filter((plan) => !subjectId || plan.subjectId === subjectId || plan.subjectIds?.includes(subjectId)));
 });
 
 app.get(['/api/plans/:id', '/api/study-plans/:id'], (req: Request, res: Response) => {
@@ -476,13 +476,24 @@ app.post('/api/ai/assistant', async (req: Request, res: Response) => {
 
 app.post(['/api/ai/plan', '/api/ai/study-plan'], async (req: Request, res: Response) => {
   try {
-    const { subjectName, topics, examDate, hoursPerDay, weakTopics } = req.body;
-    if (!subjectName) {
-      return res.status(400).json({ error: 'Subject name is required' });
+    const { subjectId, subjectName, topics, examDate, hoursPerDay, weakTopics } = req.body;
+    const subject = typeof subjectId === 'string'
+      ? getSubjects().find((item) => item.id === subjectId && !item.archivedAt)
+      : getSubjects().find((item) => item.name === subjectName && !item.archivedAt);
+    if (!subject || subject.name !== subjectName) {
+      return res.status(400).json({ error: 'Choose a saved active subject and provide its matching name.' });
     }
+    const savedTopics = getTopics(subject.id);
+    if (topics !== undefined && (!Array.isArray(topics) || topics.some((topic) =>
+      !topic || typeof topic.name !== 'string' || !savedTopics.some((saved) => saved.name === topic.name)
+    ))) return res.status(400).json({ error: 'Every plan topic must belong to the selected subject.' });
     const plan = await generateStudyPlanWithAI({
-      subjectName,
-      topics: topics || [],
+      subjectName: subject.name,
+      topics: topics || savedTopics.map((topic) => ({
+        name: topic.name,
+        difficulty: topic.difficulty,
+        confidenceLevel: topic.confidenceLevel,
+      })),
       examDate,
       hoursPerDay,
       weakTopics,
@@ -535,13 +546,24 @@ app.post('/api/ai/quiz', async (req: Request, res: Response) => {
 
 app.post('/api/ai/summarize-notes', async (req: Request, res: Response) => {
   try {
-    const { notesText, subjectName } = req.body;
+    const { notesText, subjectId, subjectName } = req.body;
     if (!notesText || notesText.trim().length === 0) {
       return res.status(400).json({ error: 'Notes text is required' });
     }
+    const subject = typeof subjectId === 'string'
+      ? getSubjects().find((item) => item.id === subjectId && !item.archivedAt)
+      : typeof subjectName === 'string'
+        ? getSubjects().find((item) => item.name === subjectName && !item.archivedAt)
+        : undefined;
+    if ((subjectId !== undefined || subjectName !== undefined) && !subject) {
+      return res.status(400).json({ error: 'Selected subject is not saved and active' });
+    }
+    if (subject && subjectName !== undefined && subject.name !== subjectName) {
+      return res.status(400).json({ error: 'Selected subject ID and name do not match' });
+    }
     const summary = await summarizeNotesWithAI({
       notesText,
-      subjectName: subjectName || 'General Subject',
+      subjectName: subject?.name || 'General Subject',
     });
     res.json(summary);
   } catch (err: any) {

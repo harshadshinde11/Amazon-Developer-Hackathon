@@ -83,7 +83,10 @@ Formatting guidelines:
 
   // Graceful, high-quality fallback based on query
   const lastUserMsg = messages[messages.length - 1]?.content.toLowerCase() || '';
-  if (lastUserMsg.includes('a*') || lastUserMsg.includes('astar')) {
+  const normalizedSubject = subjectName.toLowerCase();
+  const isDsaSubject = /data structures|\bdsa\b|algorithms/i.test(normalizedSubject);
+  const isAiSubject = /artificial intelligence|\bai\b/i.test(normalizedSubject);
+  if ((isDsaSubject || isAiSubject) && (lastUserMsg.includes('a*') || lastUserMsg.includes('astar'))) {
     return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
 
 ### The A* Search Algorithm Explained (${mode.toUpperCase()} Mode)
@@ -115,7 +118,7 @@ What happens if $h(n) = 0$ for all nodes?
 *Answer:* A* turns into standard **Dijkstra's Algorithm**, exploring in all directions equally!`;
   }
 
-  if (lastUserMsg.includes('binary search')) {
+  if (isDsaSubject && lastUserMsg.includes('binary search')) {
     return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
 
 ### Binary Search: Fast Lookup in O(log n) Time
@@ -156,20 +159,9 @@ function binarySearch(arr: number[], target: number): number {
 
   return `> **Demo mode:** This response uses local fallback content; no Gemini response was generated.
 
-### StudyPilot AI: Key Insights on ${subjectName}
+### ${subjectName}${topicName ? ` · ${topicName}` : ''}
 
-Here is a structured breakdown for **${messages[messages.length - 1]?.content}**:
-
-#### 1. Fundamental Definition
-In **${subjectName}**, understanding the core mechanics and trade-offs is essential for both conceptual mastery and examination success.
-
-#### 2. Key Takeaways
-- Break down complex problems into modular sub-problems.
-- Identify the input invariants, operational constraints, and expected output.
-- Analyze the time and space complexity ($O(1)$, $O(n)$, $O(\\log n)$).
-
-#### 3. Study Recommendation
-Would you like me to generate a 5-question targeted quiz on this topic, or provide a step-by-step practice problem?`;
+I don't have a configured AI model available to reliably explain **${messages[messages.length - 1]?.content}** yet, and I won't guess at a syllabus for ${subjectName}. Add your course notes or topic details in My Subjects, or configure the Gemini backend to get a subject-grounded explanation, notes, examples, and practice questions.`;
 }
 
 export async function generateStudyPlanWithAI(params: {

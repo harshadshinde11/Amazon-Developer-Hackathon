@@ -205,6 +205,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
     try {
       const result = await api.summarizeNotes({
         notesText,
+        subjectId: activeSubject?.id,
         subjectName: activeSubject?.name || 'General',
       });
       setSummaryResult(result);
@@ -230,7 +231,16 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
         </div>
 
         <button
-          onClick={() => setShowSubjectModal(true)}
+          onClick={() => {
+            setEditingSubject(null);
+            setSelectedCatalogName('custom');
+            setNewSubName('');
+            setNewSubCode('');
+            setNewSubColor('#8b5cf6');
+            setNewSubExamDate('');
+            setSubjectError('');
+            setShowSubjectModal(true);
+          }}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shadow-md shadow-purple-600/20 transition-all"
         >
           <Plus size={15} />

@@ -150,7 +150,10 @@ export async function createSubjectStudyPlan(input: {
         durationMinutes: Math.max(15, Math.min(120,
           (isWeak || weakTopics.includes(topic.name) ? 60 : difficultyWeight === 2 ? 60 : 45)
           + (topic.confidenceLevel <= 2 ? 15 : 0))),
-        priority: (isWeak ? 100 : 0) + (5 - topic.confidenceLevel) * 10 + difficultyWeight,
+        priority: (isWeak ? 100 : 0)
+          + (averageScore === undefined ? 0 : 100 - averageScore)
+          + (5 - topic.confidenceLevel) * 10
+          + difficultyWeight,
         learningObjective: generatedSession?.learningObjective || `Build understanding and practice ${topic.name}.`,
         recommendedActivity: generatedSession?.recommendedActivity || `Review your notes and work through examples for ${topic.name}.`,
         revisionTask: generatedSession?.revisionTask || `Check your understanding of ${topic.name} with practice questions.`,

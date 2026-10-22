@@ -305,7 +305,7 @@ export function readDb(): DatabaseSchema {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as DatabaseSchema;
     const migrated = migrateDatabase(parsed);
-    if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+    if (raw !== JSON.stringify(migrated, null, 2)) {
       writeDb(migrated);
     }
     return migrated;

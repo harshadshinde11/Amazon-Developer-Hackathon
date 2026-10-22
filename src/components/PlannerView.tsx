@@ -18,8 +18,6 @@ interface PlannerViewProps {
   plans: StudyPlan[];
   subjects: Subject[];
   activeSubjectId: string;
-  onSelectSubject: (subjectId: string) => void;
-  topicAnalytics: TopicAnalytics[];
   onRefreshPlans: () => void;
   onCompleteSession: (planId: string, sessionId: string) => void;
 }
@@ -28,8 +26,6 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   plans,
   subjects,
   activeSubjectId,
-  onSelectSubject,
-  topicAnalytics,
   onRefreshPlans,
   onCompleteSession,
 }) => {
@@ -38,66 +34,37 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
   const [filterView, setFilterView] = useState<'all' | 'today' | 'upcoming'>('all');
 
   // Form fields
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
-    activeSubjectId || subjects.find((subject) => !subject.archivedAt)?.id || ''
-  );
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>(() => {
+    const initialSubject = activeSubjectId || subjects.find((subject) => !subject.archivedAt)?.id;
+    return initialSubject ? [initialSubject] : [];
+  });
   const [examDate, setExamDate] = useState<string>(
     new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0]
   );
   const [hoursPerDay, setHoursPerDay] = useState<number>(2);
 
-  const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
+  const selectedSubjects = subjects.filter((subject) => selectedSubjectIds.includes(subject.id) && !subject.archivedAt);
 
   React.useEffect(() => {
-    if (activeSubjectId) setSelectedSubjectId(activeSubjectId);
+    if (activeSubjectId) setSelectedSubjectIds([activeSubjectId]);
   }, [activeSubjectId]);
 
   const handleCreatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSubject) return;
+    if (selectedSubjects.length === 0) return;
 
     setIsGenerating(true);
     try {
-      // Find weak topics for this subject
-      const weakTopics = topicAnalytics
-        .filter((t) => t.subjectId === selectedSubject.id && t.status === 'Needs revision')
-        .map((t) => t.topicName);
-
-      // Fetch topics for this subject
-      const subjectTopics = await api.getTopics(selectedSubject.id);
-
-      const generated = await api.generateAIPlan({
-        subjectName: selectedSubject.name,
-        topics: subjectTopics.map((t) => ({
-          name: t.name,
-          difficulty: t.difficulty,
-          confidenceLevel: t.confidenceLevel,
-        })),
+      await api.createSubjectStudyPlan({
+        subjectIds: selectedSubjects.map((subject) => subject.id),
         examDate,
         hoursPerDay,
-        weakTopics,
-      });
-
-      // Save plan to persistent DB
-      await api.createPlan({
-        userId: 'user_alexa_01',
-        title: generated.title,
-        subjectId: selectedSubject.id,
-        subjectName: selectedSubject.name,
-        examDate,
-        totalHours: generated.totalHours,
-        priorityRationale: generated.priorityRationale,
-        sessions: generated.sessions.map((s, idx) => ({
-          ...s,
-          id: `sess_${Date.now()}_${idx}`,
-          studyPlanId: '',
-        })),
       });
 
       onRefreshPlans();
       setShowModal(false);
-    } catch (err: any) {
-      alert(`Plan generation error: ${err.message || 'Please try again.'}`);
+    } catch (err) {
+      alert(`Plan generation error: ${err instanceof Error ? err.message : 'Please try again.'}`);
     } finally {
       setIsGenerating(false);
     }
@@ -256,6 +223,9 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                             <span className="font-mono text-xs font-semibold text-purple-300">
                               📅 {session.scheduledDate}
                             </span>
+                            <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200">
+                              {session.subjectName}
+                            </span>
                             <span className="text-xs text-slate-400 flex items-center gap-1">
                               <Clock size={12} /> {session.startTime} ({session.durationMinutes} min)
                             </span>
@@ -307,25 +277,32 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
               <span>Generate AI Study Plan</span>
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              StudyPilot will assemble an optimal schedule prioritizing weak topics and examination deadlines.
+              Choose one subject or combine several. Saved quiz performance and pending sessions inform the schedule.
             </p>
 
             <form onSubmit={handleCreatePlan} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Target Subject
-                </label>
-                <select
-                  value={selectedSubjectId}
-                  onChange={(e) => setSelectedSubjectId(e.target.value)}
-                  className="w-full bg-slate-800 text-white text-xs rounded-xl px-3 py-2 border border-slate-700"
-                >
-                  {subjects.filter((subject) => !subject.archivedAt).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
+                <fieldset>
+                  <legend className="block text-xs font-semibold text-slate-300 mb-1">Subjects to prepare</legend>
+                  <div className="max-h-36 space-y-1 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800 p-2">
+                    {subjects.filter((subject) => !subject.archivedAt).map((subject) => (
+                      <label key={subject.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedSubjectIds.includes(subject.id)}
+                          onChange={(event) => setSelectedSubjectIds((current) => event.target.checked
+                            ? [...current, subject.id]
+                            : current.filter((id) => id !== subject.id))}
+                          className="accent-purple-500"
+                        />
+                        <span>{subject.name} ({subject.code})</span>
+                      </label>
+                    ))}
+                    {subjects.every((subject) => subject.archivedAt) && (
+                      <p className="px-2 py-1 text-xs text-slate-400">Add an active subject before planning.</p>
+                    )}
+                  </div>
+                </fieldset>
               </div>
 
               <div>
@@ -367,7 +344,7 @@ export const PlannerView: React.FC<PlannerViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isGenerating}
+                  disabled={isGenerating || selectedSubjects.length === 0}
                   className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {isGenerating ? (
