@@ -90,6 +90,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
 
     try {
       const catalogEntry = SUBJECT_CATALOG.find((subject) => subject.name === selectedCatalogName);
+      let createdSubjectId: string | undefined;
       if (editingSubject) {
         await api.updateSubject(editingSubject.id, {
           name: newSubName.trim(),
@@ -105,7 +106,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
           examinationDate: newSubExamDate || undefined,
           starterTopics: catalogEntry?.starterTopics,
         });
-        onSelectSubject(created.id);
+        createdSubjectId = created.id;
       }
 
       setNewSubName('');
@@ -115,6 +116,7 @@ export const SubjectsView: React.FC<SubjectsViewProps> = ({
       setEditingSubject(null);
       setShowSubjectModal(false);
       await onRefreshData();
+      if (createdSubjectId) onSelectSubject(createdSubjectId);
     } catch (err) {
       setSubjectError(err instanceof Error ? err.message : 'Could not save subject.');
     }
