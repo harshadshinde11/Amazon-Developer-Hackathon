@@ -635,7 +635,7 @@ app.post('/api/db/reset-demo', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'Database restored to verified demo scenario.' });
 });
 
-```typescript
+
 // -------------------------------------------------------------
 // 11. Vite Dev Server / Static Dist Mount
 // -------------------------------------------------------------
@@ -663,4 +663,4 @@ async function startServer() {
 }
 
 startServer();
-```
+
