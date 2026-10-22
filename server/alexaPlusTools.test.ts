@@ -201,8 +201,30 @@ test('tutor demo fallback does not answer non-DSA questions with hard-coded DSA 
       subjectName: 'Database Management Systems',
       topicName: 'Transactions',
     });
+
     assert.match(response, /Database Management Systems/);
     assert.doesNotMatch(response, /The A\* Search Algorithm Explained/);
+  } finally {
+    if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalApiKey;
+  }
+});
+
+test('custom-topic quiz fallback avoids unsupported algorithm facts', async () => {
+  const originalApiKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = '';
+  try {
+    const questions = await generateQuizWithAI({
+      subjectName: 'Custom Astronomy',
+      topicName: 'Orbital mechanics basics',
+      numQuestions: 5,
+    });
+    assert.equal(questions.length, 5);
+    assert.ok(questions.every((question) => question.generationMode === 'demo'));
+    assert.ok(questions.every((question) => !/time complexity|O\\(2\\^n\\)|base termination|infinite loops/i.test(
+      `${question.question} ${question.explanation} ${question.options.join(' ')}`
+    )));
+    assert.ok(questions.some((question) => /course materials|syllabus/i.test(question.explanation)));
   } finally {
     if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalApiKey;

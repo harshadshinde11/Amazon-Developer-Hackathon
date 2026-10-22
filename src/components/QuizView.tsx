@@ -111,7 +111,7 @@ export const QuizView: React.FC<QuizViewProps> = ({
   }, [isQuizActive]);
 
   const currentSubjectTopics = topics.filter((t) => t.subjectId === selectedSubjectId);
-  const selectedTopic = topics.find((t) => t.id === selectedTopicId) || currentSubjectTopics[0];
+  const selectedTopic = currentSubjectTopics.find((topic) => topic.id === selectedTopicId) || currentSubjectTopics[0];
   const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
 
   const handleStartQuiz = async () => {

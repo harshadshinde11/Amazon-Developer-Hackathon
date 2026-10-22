@@ -441,7 +441,7 @@ Output MUST be a JSON array of objects with schema:
     }
   }
 
-  // High quality curated question bank fallback
+  // Keep the demo fallback educational without implying an official syllabus or inventing facts.
   const normalizedSubject = subjectName.toLowerCase();
   if ((/data structures|\bdsa\b|algorithms|artificial intelligence|\bai\b/i.test(normalizedSubject))
     && (topicName.toLowerCase().includes('a*') || topicName.toLowerCase().includes('astar'))) {
@@ -523,42 +523,42 @@ Output MUST be a JSON array of objects with schema:
   return buildDemoQuiz([
     {
       id: `q_gen_1`,
-      question: `What is the primary design purpose of ${topicName} in ${subjectName}?`,
+      question: `Without course notes for ${topicName}, which source should you use to confirm its subject-specific definitions?`,
       type: 'mcq',
       options: [
-        `To optimize execution efficiency and provide clear structural guarantees`,
-        `To bypass memory constraints at the cost of correctness`,
-        `To eliminate the need for input validation entirely`,
-        `To increase operational complexity arbitrarily`,
+        `Your instructor's materials or notes supplied for this subject`,
+        `An unrelated subject's syllabus`,
+        `An unverified assumption based only on the topic title`,
+        `A practice score without reviewing the course material`,
       ],
       correctAnswer: 0,
-      explanation: `${topicName} is structured to optimize efficiency and guarantee predictable behavioral correctness.`,
+      explanation: `Course materials provide the reliable subject-specific meaning of ${topicName}; a topic title alone does not define an official syllabus.`,
     },
     {
       id: `q_gen_2`,
-      question: `Which asymptotic complexity or operational characteristic best describes ${topicName}?`,
+      question: `Which practice best checks your understanding of ${topicName}?`,
       type: 'mcq',
       options: [
-        `Depends on input constraints, typically bounded efficiently by logarithmic or linear factors`,
-        `Always exponential O(2^n) under all circumstances`,
-        `Constant O(1) regardless of state space or dataset magnitude`,
-        `Completely unpredictable and nondeterministic`,
+        `Explain an example using the definitions and rules in your course materials`,
+        `Memorize the topic name without reviewing its meaning`,
+        `Assume the same explanation applies to every subject`,
+        `Skip the assumptions and evidence in your notes`,
       ],
       correctAnswer: 0,
-      explanation: `Algorithm analysis shows that operations are bounded by problem invariants and data structures.`,
+      explanation: `Explaining a worked example against the supplied course materials reveals which concepts still need review.`,
     },
     {
       id: `q_gen_3`,
-      question: `What is the most common pitfall encountered when implementing ${topicName}?`,
+      question: `What should you do if a question about ${topicName} goes beyond the notes you provided?`,
       type: 'mcq',
       options: [
-        `Overlooking edge cases, base termination conditions, or boundary bounds`,
-        `Writing too few comments in source files`,
-        `Using standard variable naming conventions`,
-        `Executing code on 64-bit architecture`,
+        `Add a trusted course reference or ask your instructor before treating an answer as authoritative`,
+        `Assume the first plausible answer is an official course requirement`,
+        `Replace your subject's notes with unrelated material`,
+        `Treat a generic practice question as a verified syllabus`,
       ],
       correctAnswer: 0,
-      explanation: `Boundary conditions, empty inputs, and termination criteria are the leading causes of logic faults.`,
+      explanation: `The demo question bank does not have your course's syllabus, so unknown details should be verified from a trusted source.`,
     },
   ]);
 }
