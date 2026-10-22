@@ -93,14 +93,19 @@ export default function App() {
   }, []);
 
   const handleSelectActiveSubject = async (subjectId: string) => {
-    const subject = subjects.find((item) => item.id === subjectId && !item.archivedAt);
-    if (!subject) return;
-    setActiveSubjectId(subject.id);
-    setUser((current) => current ? { ...current, activeSubjectId: subject.id } : current);
+    if (!subjectId) return;
+    const previousSubjectId = activeSubjectId;
+    setActiveSubjectId(subjectId);
+    setUser((current) => current ? { ...current, activeSubjectId: subjectId } : current);
     try {
-      await api.updateUser({ activeSubjectId: subject.id });
+      const updatedUser = await api.updateUser({ activeSubjectId: subjectId });
+      setUser(updatedUser);
+      setActiveSubjectId(updatedUser.activeSubjectId || subjectId);
     } catch (error) {
       console.error('Could not save active subject:', error);
+      setActiveSubjectId(previousSubjectId);
+      setUser((current) => current ? { ...current, activeSubjectId: previousSubjectId } : current);
+      alert(error instanceof Error ? error.message : 'Could not save the active subject.');
     }
   };
 
