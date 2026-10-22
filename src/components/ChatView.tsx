@@ -114,7 +114,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
             content: typeof explanation === 'string' ? explanation : message.content,
           };
         }),
+        subjectId: selectedSubjectId,
         subjectName: selectedSubject,
+        topicId: selectedTopicId || undefined,
         topicName: topics.find((topic) => topic.id === selectedTopicId)?.name,
         mode,
         difficulty,
@@ -186,7 +188,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
     try {
       const response = await api.chatWithAI({
         messages: trimmed.map((m) => ({ role: m.role, content: m.content })),
+        subjectId: selectedSubjectId,
         subjectName: selectedSubject,
+        topicId: selectedTopicId || undefined,
+        topicName: topics.find((topic) => topic.id === selectedTopicId)?.name,
         mode,
         difficulty,
       });

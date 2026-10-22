@@ -121,7 +121,9 @@ export const QuizView: React.FC<QuizViewProps> = ({
 
     try {
       const response = await api.generateAIQuiz({
+        subjectId: selectedSubjectId,
         subjectName: selectedSubject?.name || 'General',
+        topicId: selectedTopic.id,
         topicName: selectedTopic.name,
         difficulty,
         numQuestions,

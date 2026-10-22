@@ -206,6 +206,8 @@ export default function App() {
 
             {currentView === 'voice' && (
               <VoiceAssistantView
+                subjects={subjects}
+                activeSubjectId={activeSubjectId}
                 onNavigate={setCurrentView}
                 onStartQuizWithTopic={handleStartQuizWithTopic}
                 onRefreshData={refreshAllData}

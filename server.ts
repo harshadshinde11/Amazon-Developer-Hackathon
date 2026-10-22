@@ -42,6 +42,7 @@ import {
   computeTopicAnalytics,
   generateAdaptiveRecommendations,
 } from './src/utils/adaptiveEngine.js';
+import { createSubjectStudyPlan } from './server/subjectPlanService.js';
 
 dotenv.config();
 
@@ -254,6 +255,19 @@ app.post(['/api/plans', '/api/study-plans'], (req: Request, res: Response) => {
     priorityRationale: plan.priorityRationale,
     sessions: plan.sessions,
   });
+
+  app.post('/api/plans/generate', async (req: Request, res: Response) => {
+    try {
+      const plan = await createSubjectStudyPlan({
+        subjectIds: req.body.subjectIds,
+        examDate: req.body.examDate,
+        hoursPerDay: req.body.hoursPerDay,
+      });
+      res.status(201).json(plan);
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not generate a subject study plan.' });
+    }
+  });
   res.status(201).json(saved);
 });
 
@@ -343,8 +357,9 @@ app.get('/api/analytics', (_req: Request, res: Response) => {
   const subjects = getSubjects().filter((subject) => !subjectId || subject.id === subjectId);
   const topics = getTopics(subjectId);
   const attempts = getQuizAttempts(undefined, subjectId);
-  const plans = getStudyPlans().filter((plan) => !subjectId || plan.subjectId === subjectId);
-  const allSessions = plans.flatMap((p) => p.sessions);
+  const plans = getStudyPlans().filter((plan) => !subjectId || plan.subjectId === subjectId || plan.subjectIds?.includes(subjectId));
+  const allSessions = plans.flatMap((plan) => plan.sessions)
+    .filter((session) => !subjectId || session.subjectId === subjectId);
 
   const topicAnalytics = computeTopicAnalytics(topics, subjects, attempts, allSessions);
   const recommendations = generateAdaptiveRecommendations(topicAnalytics, subjects, allSessions);
@@ -378,13 +393,34 @@ app.get('/api/analytics', (_req: Request, res: Response) => {
 // -------------------------------------------------------------
 app.post('/api/ai/chat', async (req: Request, res: Response) => {
   try {
-    const { messages, subjectName, mode, difficulty } = req.body;
+    const { messages, subjectId, subjectName, topicId, topicName, mode, difficulty } = req.body;
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
+    const subject = typeof subjectId === 'string'
+      ? getSubjects().find((item) => item.id === subjectId && !item.archivedAt)
+      : getSubjects().find((item) => item.name === subjectName && !item.archivedAt);
+    if ((subjectId !== undefined || subjectName !== undefined) && !subject) {
+      return res.status(400).json({ error: 'Selected subject is not saved and active' });
+    }
+    if (subject && subjectName !== undefined && subject.name !== subjectName) {
+      return res.status(400).json({ error: 'Selected subject ID and name do not match' });
+    }
+    const topic = typeof topicId === 'string'
+      ? getTopics(subject?.id).find((item) => item.id === topicId)
+      : typeof topicName === 'string'
+        ? getTopics(subject?.id).find((item) => item.name === topicName)
+        : undefined;
+    if ((topicId !== undefined || topicName !== undefined) && (!subject || !topic)) {
+      return res.status(400).json({ error: 'Selected topic does not belong to the selected subject' });
+    }
+    if (topic && topicName !== undefined && topic.name !== topicName) {
+      return res.status(400).json({ error: 'Selected topic ID and name do not match' });
+    }
     const responseText = await chatWithTutor({
       messages,
-      subjectName,
+      subjectName: subject?.name,
+      topicName: topic?.name,
       mode,
       difficulty,
     });
@@ -396,7 +432,7 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
 
 app.post('/api/ai/assistant', async (req: Request, res: Response) => {
   try {
-    const { message, history, subjectName, topicName, mode, difficulty, pendingTool } = req.body;
+    const { message, history, subjectId, subjectName, topicId, topicName, mode, difficulty, pendingTool } = req.body;
     if (typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'A non-empty message is required' });
     }
@@ -404,14 +440,34 @@ app.post('/api/ai/assistant', async (req: Request, res: Response) => {
       !entry || !['user', 'assistant'].includes(entry.role) || typeof entry.content !== 'string' || entry.content.length > 5000))) {
       return res.status(400).json({ error: 'History must contain at most 20 valid messages of up to 5,000 characters each' });
     }
-    const selectedSubject = typeof subjectName === 'string'
-      ? getSubjects().find((subject) => subject.name === subjectName && !subject.archivedAt)
-      : undefined;
-    if (subjectName !== undefined && !selectedSubject) return res.status(400).json({ error: 'Selected subject is not saved and active' });
-    if (topicName !== undefined && (typeof topicName !== 'string' || !selectedSubject || !getTopics(selectedSubject.id).some((topic) => topic.name === topicName))) {
+    const selectedSubject = typeof subjectId === 'string'
+      ? getSubjects().find((subject) => subject.id === subjectId && !subject.archivedAt)
+      : typeof subjectName === 'string'
+        ? getSubjects().find((subject) => subject.name === subjectName && !subject.archivedAt)
+        : undefined;
+    if ((subjectId !== undefined || subjectName !== undefined) && !selectedSubject) return res.status(400).json({ error: 'Selected subject is not saved and active' });
+    if (selectedSubject && subjectName !== undefined && selectedSubject.name !== subjectName) {
+      return res.status(400).json({ error: 'Selected subject ID and name do not match' });
+    }
+    const selectedTopic = typeof topicId === 'string'
+      ? getTopics(selectedSubject?.id).find((topic) => topic.id === topicId)
+      : typeof topicName === 'string'
+        ? getTopics(selectedSubject?.id).find((topic) => topic.name === topicName)
+        : undefined;
+    if ((topicId !== undefined || topicName !== undefined) && (!selectedSubject || !selectedTopic)) {
       return res.status(400).json({ error: 'Selected topic does not belong to the selected subject' });
     }
-    const result = await routeStudyAssistantRequest(message, { subjectName, topicName, mode, difficulty, pendingTool, history });
+    if (selectedTopic && topicName !== undefined && selectedTopic.name !== topicName) {
+      return res.status(400).json({ error: 'Selected topic ID and name do not match' });
+    }
+    const result = await routeStudyAssistantRequest(message, {
+      subjectName: selectedSubject?.name,
+      topicName: selectedTopic?.name,
+      mode,
+      difficulty,
+      pendingTool,
+      history,
+    });
     res.json(result);
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Assistant request failed' });
@@ -439,16 +495,23 @@ app.post(['/api/ai/plan', '/api/ai/study-plan'], async (req: Request, res: Respo
 
 app.post('/api/ai/quiz', async (req: Request, res: Response) => {
   try {
-    const { subjectName, topicName, difficulty, numQuestions, questionType } = req.body;
+    const { subjectId, subjectName, topicId, topicName, difficulty, numQuestions, questionType } = req.body;
     if (typeof topicName !== 'string' || !topicName.trim()) {
       return res.status(400).json({ error: 'Topic name is required' });
     }
-    const subject = getSubjects().find((candidate) => candidate.name.toLowerCase() === String(subjectName || '').trim().toLowerCase());
-    const topic = getTopics(subject?.id).find((candidate) => candidate.name.toLowerCase() === topicName.trim().toLowerCase());
-    if (!topic) {
-      return res.status(400).json({ error: 'Choose a topic saved in your subjects.' });
+    const subject = typeof subjectId === 'string'
+      ? getSubjects().find((candidate) => candidate.id === subjectId && !candidate.archivedAt)
+      : getSubjects().find((candidate) => candidate.name.toLowerCase() === String(subjectName || '').trim().toLowerCase() && !candidate.archivedAt);
+    if (!subject || (subjectName !== undefined && subject.name.toLowerCase() !== String(subjectName).trim().toLowerCase())) {
+      return res.status(400).json({ error: 'Choose a saved active subject and provide its matching ID and name.' });
     }
-    const savedSubject = getSubjects().find((candidate) => candidate.id === topic.subjectId);
+    const topic = typeof topicId === 'string'
+      ? getTopics(subject.id).find((candidate) => candidate.id === topicId)
+      : getTopics(subject.id).find((candidate) => candidate.name.toLowerCase() === topicName.trim().toLowerCase());
+    if (!topic || topic.name.toLowerCase() !== topicName.trim().toLowerCase()) {
+      return res.status(400).json({ error: 'Choose a topic saved under the selected subject.' });
+    }
+    const savedSubject = subject;
     const questions = await generateQuizWithAI({
       subjectName: savedSubject?.name || 'General Studies',
       topicName: topic.name,
@@ -492,6 +555,9 @@ app.post('/api/ai/voice-command', async (req: Request, res: Response) => {
     const { command, subjectName, mode, difficulty, pendingTool } = req.body;
     if (!command || typeof command !== 'string') {
       return res.status(400).json({ error: 'Command string is required' });
+    }
+    if (subjectName !== undefined && !getSubjects().some((subject) => subject.name === subjectName && !subject.archivedAt)) {
+      return res.status(400).json({ error: 'Selected subject is not saved and active' });
     }
     return res.json(await routeStudyAssistantRequest(command, { subjectName, mode, difficulty, pendingTool }));
   } catch (err: any) {

@@ -15,9 +15,11 @@ import {
 } from 'lucide-react';
 import { api } from '../api.js';
 import { NavView } from './Sidebar.js';
-import { AgentActionRecord, QuizQuestion } from '../types.js';
+import { AgentActionRecord, QuizQuestion, Subject } from '../types.js';
 
 interface VoiceAssistantViewProps {
+  subjects: Subject[];
+  activeSubjectId: string;
   onNavigate: (view: NavView) => void;
   onStartQuizWithTopic: (topicId?: string, topicName?: string, questions?: QuizQuestion[], quizId?: string) => void;
   onRefreshData: () => void;
@@ -38,6 +40,8 @@ interface VoiceMessage {
 }
 
 export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
+  subjects,
+  activeSubjectId,
   onNavigate,
   onStartQuizWithTopic,
   onRefreshData,
@@ -59,6 +63,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pendingToolRef = useRef<{ name: string; arguments: Record<string, unknown> } | undefined>(undefined);
+  const activeSubject = subjects.find((subject) => subject.id === activeSubjectId && !subject.archivedAt);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -194,7 +199,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
     setState('processing');
 
     try {
-      const result = await api.executeVoiceCommand(command, pendingToolRef.current);
+      const result = await api.executeVoiceCommand(command, pendingToolRef.current, activeSubject?.name);
       pendingToolRef.current = result.pendingTool;
 
       const assistantMsg: VoiceMessage = {
@@ -250,6 +255,7 @@ export const VoiceAssistantView: React.FC<VoiceAssistantViewProps> = ({
             </h2>
             <p className="text-xs text-slate-400">
               Simulated Alexa+-style tools using saved StudyPilot data and browser speech.
+              {activeSubject ? ` Active subject: ${activeSubject.name}.` : ' Add a subject to personalize tutoring.'}
             </p>
           </div>
         </div>

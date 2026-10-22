@@ -41,6 +41,7 @@ export interface Topic {
 export interface StudySession {
   id: string;
   studyPlanId: string;
+  subjectId?: string;
   subjectName: string;
   topicName: string;
   scheduledDate: string; // YYYY-MM-DD
@@ -58,6 +59,7 @@ export interface StudyPlan {
   userId: string;
   title: string;
   subjectId?: string;
+  subjectIds?: string[];
   subjectName: string;
   examDate?: string;
   totalHours: number;

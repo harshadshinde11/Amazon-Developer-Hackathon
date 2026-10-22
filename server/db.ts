@@ -303,11 +303,62 @@ export function readDb(): DatabaseSchema {
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw) as DatabaseSchema;
+    const migrated = migrateDatabase(parsed);
+    if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+      writeDb(migrated);
+    }
+    return migrated;
   } catch (err) {
     console.error('Error reading database, restoring demo data:', err);
     fs.writeFileSync(DB_FILE, JSON.stringify(DEMO_DATA, null, 2), 'utf-8');
     return DEMO_DATA;
+  }
+
+  function migrateDatabase(data: DatabaseSchema): DatabaseSchema {
+    const activeSubjects = data.subjects.filter((subject) => !subject.archivedAt);
+    const findSubjectByName = (name?: string) => name
+      ? data.subjects.find((subject) => subject.name.trim().toLowerCase() === name.trim().toLowerCase())
+      : undefined;
+
+    for (const plan of data.studyPlans) {
+      const planSubject = data.subjects.find((subject) => subject.id === plan.subjectId)
+        || findSubjectByName(plan.subjectName);
+      if (!plan.subjectId && planSubject) plan.subjectId = planSubject.id;
+      if (!plan.subjectIds?.length && planSubject) plan.subjectIds = [planSubject.id];
+      for (const session of plan.sessions) {
+        const sessionSubject = data.subjects.find((subject) => subject.id === session.subjectId)
+          || findSubjectByName(session.subjectName)
+          || (plan.subjectIds?.length === 1 ? data.subjects.find((subject) => subject.id === plan.subjectIds?.[0]) : planSubject);
+        if (!session.subjectId && sessionSubject) session.subjectId = sessionSubject.id;
+        if (!session.subjectName && sessionSubject) session.subjectName = sessionSubject.name;
+      }
+    }
+
+    for (const attempt of data.quizAttempts) {
+      const topic = data.topics.find((item) => item.id === attempt.topicId);
+      const subject = data.subjects.find((item) => item.id === attempt.subjectId)
+        || data.subjects.find((item) => item.id === topic?.subjectId)
+        || findSubjectByName(attempt.subjectName);
+      if (!attempt.subjectId && subject) attempt.subjectId = subject.id;
+      if (!attempt.subjectName && subject) attempt.subjectName = subject.name;
+    }
+
+    for (const conversation of data.conversations) {
+      const subject = data.subjects.find((item) => item.id === conversation.subjectId)
+        || findSubjectByName(conversation.subjectName)
+        || findSubjectByName(conversation.messages.find((message) => message.subjectName)?.subjectName);
+      if (!conversation.subjectId && subject) conversation.subjectId = subject.id;
+      if (!conversation.subjectName && subject) conversation.subjectName = subject.name;
+    }
+
+    const activeSubject = activeSubjects.find((subject) => subject.id === data.user.activeSubjectId)
+      || activeSubjects.find((subject) => /data structures|\bDSA\b/i.test(subject.name))
+      || activeSubjects[0];
+    if (activeSubject && data.user.activeSubjectId !== activeSubject.id) {
+      data.user.activeSubjectId = activeSubject.id;
+    }
+    return data;
   }
 }
 
@@ -446,7 +497,9 @@ export function saveStudyPlan(plan: Omit<StudyPlan, 'id' | 'createdAt'>): StudyP
     ...plan,
     id: `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     createdAt: new Date().toISOString(),
+    sessions: plan.sessions.map((session) => ({ ...session, studyPlanId: '' })),
   };
+  newPlan.sessions = newPlan.sessions.map((session) => ({ ...session, studyPlanId: newPlan.id }));
   db.studyPlans.unshift(newPlan);
   writeDb(db);
   return newPlan;

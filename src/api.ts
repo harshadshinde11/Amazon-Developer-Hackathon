@@ -143,6 +143,20 @@ export const api = {
     });
     return res.json();
   },
+  async createSubjectStudyPlan(params: {
+    subjectIds: string[];
+    examDate: string;
+    hoursPerDay: number;
+  }): Promise<StudyPlan> {
+    const res = await fetch('/api/plans/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not generate a study plan');
+    return body;
+  },
   async updateSessionStatus(
     planId: string,
     sessionId: string,
@@ -202,7 +216,10 @@ export const api = {
   // AI Endpoints
   async chatWithAI(params: {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+    subjectId?: string;
     subjectName?: string;
+    topicId?: string;
+    topicName?: string;
     mode?: string;
     difficulty?: string;
   }): Promise<{ content: string }> {
@@ -216,7 +233,9 @@ export const api = {
   async runAssistant(params: {
     message: string;
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    subjectId?: string;
     subjectName?: string;
+    topicId?: string;
     topicName?: string;
     mode?: string;
     difficulty?: string;
@@ -260,7 +279,9 @@ export const api = {
     return res.json();
   },
   async generateAIQuiz(params: {
+    subjectId: string;
     subjectName?: string;
+    topicId: string;
     topicName: string;
     difficulty?: string;
     numQuestions?: number;
@@ -288,7 +309,11 @@ export const api = {
     });
     return res.json();
   },
-  async executeVoiceCommand(command: string, pendingTool?: { name: string; arguments: Record<string, unknown> }): Promise<{
+  async executeVoiceCommand(
+    command: string,
+    pendingTool?: { name: string; arguments: Record<string, unknown> },
+    subjectName?: string
+  ): Promise<{
     recognizedIntent: string;
     speech: string;
     action: string;
@@ -301,7 +326,7 @@ export const api = {
     const res = await fetch('/api/ai/voice-command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command, pendingTool }),
+      body: JSON.stringify({ command, pendingTool, subjectName }),
     });
     return res.json();
   },

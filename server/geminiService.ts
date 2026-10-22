@@ -20,10 +20,11 @@ function getAIClient(): GoogleGenAI | null {
 export async function chatWithTutor(params: {
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   subjectName?: string;
+  topicName?: string;
   mode?: 'simple' | 'exam' | 'tutorial' | 'revision' | 'practice';
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
 }): Promise<string> {
-  const { messages, subjectName = 'General Studies', mode = 'simple', difficulty = 'intermediate' } = params;
+  const { messages, subjectName = 'General Studies', topicName, mode = 'simple', difficulty = 'intermediate' } = params;
 
   const modeInstructions: Record<string, string> = {
     simple:
@@ -40,8 +41,11 @@ export async function chatWithTutor(params: {
 
   const systemInstruction = `You are StudyPilot AI, an elite educational tutor and study partner for the Amazon Developer Hackathon 2026.
 Subject Context: ${subjectName}.
+${topicName ? `Selected Topic: ${topicName}.` : ''}
 Difficulty Level: ${difficulty}.
 Pedagogical Mode: ${mode} (${modeInstructions[mode] || modeInstructions.simple}).
+
+Keep explanations grounded in the selected subject and topic. Do not switch to another subject because a term is ambiguous. If a request is outside the selected subject, briefly say so and ask whether the student wants to switch subjects. For custom subjects, use only the student's saved topics and supplied notes; do not invent an official syllabus.
 
 Formatting guidelines:
 - Use clean Markdown with headers (###), bold text, bullet points, and code blocks with syntax highlighting where relevant.
