@@ -635,27 +635,32 @@ app.post('/api/db/reset-demo', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'Database restored to verified demo scenario.' });
 });
 
+```typescript
 // -------------------------------------------------------------
 // 11. Vite Dev Server / Static Dist Mount
 // -------------------------------------------------------------
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
+
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
     app.use(vite.middlewares);
   } else {
     app.use(express.static(path.resolve(__dirname, 'dist')));
+
     app.get('*', (_req: Request, res: Response) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`StudyPilot AI fullstack server ready on http://0.0.0.0:${PORT}`);
+    console.log(`StudyPilot AI server running on port ${PORT}`);
   });
 }
 
 startServer();
+```
