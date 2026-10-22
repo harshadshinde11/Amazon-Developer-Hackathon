@@ -262,19 +262,20 @@ app.post(['/api/plans', '/api/study-plans'], (req: Request, res: Response) => {
     sessions: plan.sessions,
   });
 
-  app.post('/api/plans/generate', async (req: Request, res: Response) => {
-    try {
-      const plan = await createSubjectStudyPlan({
-        subjectIds: req.body.subjectIds,
-        examDate: req.body.examDate,
-        hoursPerDay: req.body.hoursPerDay,
-      });
-      res.status(201).json(plan);
-    } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : 'Could not generate a subject study plan.' });
-    }
-  });
   res.status(201).json(saved);
+});
+
+app.post('/api/plans/generate', async (req: Request, res: Response) => {
+  try {
+    const plan = await createSubjectStudyPlan({
+      subjectIds: req.body.subjectIds,
+      examDate: req.body.examDate,
+      hoursPerDay: req.body.hoursPerDay,
+    });
+    res.status(201).json(plan);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Could not generate a subject study plan.' });
+  }
 });
 
 app.put('/api/plans/:planId/sessions/:sessionId', (req: Request, res: Response) => {
