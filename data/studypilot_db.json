@@ -12,7 +12,8 @@
     "preferredHoursPerDay": 2,
     "difficultyPreference": "intermediate",
     "soundEnabled": true,
-    "voiceGender": "female"
+    "voiceGender": "female",
+    "activeSubjectId": "sub-cs201"
   },
   "subjects": [
     {
